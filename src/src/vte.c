@@ -744,9 +744,9 @@ _vte_invalidate_cursor_once(VteTerminal *terminal, gboolean periodic)
 				columns++;
 			}
 		}
-		if (preedit_width > 0) {
-			columns += preedit_width;
-			columns++; /* one more for the preedit cursor */
+		columns = MAX(columns, preedit_width);
+		if (column + columns > terminal->column_count) {
+			column = MAX(0, terminal->column_count - columns);
 		}
 
 		_vte_debug_print(VTE_DEBUG_UPDATES,
@@ -1889,7 +1889,7 @@ vte_terminal_match_check_internal_gregex(VteTerminal *terminal,
                                         g_match_info_free(match_info);
 					return result;
 				}
-				if (ko > rm_eo &&
+				if (ko > rm_eo - 1 &&
 						rm_eo > sblank) {
 					sblank = rm_eo;
 				}
@@ -1915,7 +1915,7 @@ vte_terminal_match_check_internal_gregex(VteTerminal *terminal,
 		*start = sattr + start_blank;
 	}
 	if (end != NULL) {
-		*end = sattr + end_blank;
+		*end = sattr + end_blank - 1;
 	}
 	return NULL;
 }
@@ -5144,6 +5144,10 @@ remove_cursor_timeout (VteTerminal *terminal)
 
 	g_source_remove (terminal->pvt->cursor_blink_tag);
 	terminal->pvt->cursor_blink_tag = 0;
+        if (terminal->pvt->cursor_blink_state == FALSE) {
+                _vte_invalidate_cursor_once(terminal, FALSE);
+                terminal->pvt->cursor_blink_state = TRUE;
+        }
 }
 
 /* Activates / disactivates the cursor blink timer to reduce wakeups */
@@ -5296,10 +5300,6 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 		if (terminal->pvt->cursor_blink_tag != 0)
 		{
 			remove_cursor_timeout (terminal);
-                        if (terminal->pvt->cursor_blink_state == FALSE) {
-                                _vte_invalidate_cursor_once(terminal, FALSE);
-                                terminal->pvt->cursor_blink_state = TRUE;
-                        }
 			add_cursor_timeout (terminal);
 		}
 

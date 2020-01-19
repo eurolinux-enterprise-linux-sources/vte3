@@ -1,7 +1,7 @@
 %global apiver 2.90
 
 Name: vte3
-Version: 0.36.4
+Version: 0.36.5
 Release: 1%{?dist}
 Summary: Terminal emulator library
 License: LGPLv2+
@@ -10,7 +10,7 @@ URL: http://www.gnome.org/
 #VCS: git:git://git.gnome.org/vte
 Source: http://download.gnome.org/sources/vte/0.36/vte-%{version}.tar.xz
 # https://bugzilla.gnome.org/show_bug.cgi?id=688456
-Patch2: 0001-widget-Only-show-the-cursor-on-motion-if-moved.patch
+Patch0: 0001-widget-Only-show-the-cursor-on-motion-if-moved.patch
 
 BuildRequires: gtk3-devel >= 3.0.0
 BuildRequires: ncurses-devel
@@ -43,7 +43,7 @@ developing applications that use %{name}.
 
 %prep
 %setup -q -n vte-%{version}
-%patch2 -p1 -b .motion
+%patch0 -p1 -b .motion
 
 %build
 CFLAGS="%optflags -fPIE -DPIE" \
@@ -91,8 +91,13 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 
 
 %changelog
+* Wed Mar 09 2016 Debarshi Ray <rishi@fedorapeople.org> - 0.36.5-1
+- Update to 0.36.5
+Resolves: #1303634
+
 * Tue May 19 2015 David King <dking@redhat.com> - 0.36.4-1
-- Update to 0.36.4 (#1222692)
+- Update to 0.36.4
+Resolves: #1222692
 
 * Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.34.6-3
 - Mass rebuild 2014-01-24
