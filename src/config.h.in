@@ -1,9 +1,9 @@
-/* config.h.in.  Generated from configure.in by autoheader.  */
+/* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* always defined to indicate that i18n is enabled */
 #undef ENABLE_NLS
 
-/* Force use of GDK's multihead-safe APIs. */
+/* Force use of GDK multihead-safe APIs. */
 #undef GDK_MULTIHEAD_SAFE
 
 /* Package translatable messages domain name. */
@@ -39,6 +39,9 @@
 
 /* Define to 1 if you have the `fork' function. */
 #undef HAVE_FORK
+
+/* Define to 1 if you have the `fwrite_unlocked' function. */
+#undef HAVE_FWRITE_UNLOCKED
 
 /* Define to 1 if you have the `getpgid' function. */
 #undef HAVE_GETPGID
@@ -79,11 +82,17 @@
 /* Define to 1 if you have the `posix_openpt' function. */
 #undef HAVE_POSIX_OPENPT
 
+/* Define to 1 if you have the `pread' function. */
+#undef HAVE_PREAD
+
 /* Define to 1 if you have the `ptsname' function. */
 #undef HAVE_PTSNAME
 
 /* Define to 1 if you have the `ptsname_r' function. */
 #undef HAVE_PTSNAME_R
+
+/* Define to 1 if you have the `pwrite' function. */
+#undef HAVE_PWRITE
 
 /* Define if you have the recvmsg function. */
 #undef HAVE_RECVMSG

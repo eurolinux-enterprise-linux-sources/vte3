@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2001-2004 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 
@@ -31,6 +31,7 @@
 #include "vtetc.h"
 
 #define BEL "\007"
+#define ST _VTE_CAP_ST
 
 
 
@@ -569,6 +570,34 @@ vte_sequence_handler_multiple_r(VteTerminal *terminal,
                                               terminal->column_count - terminal->pvt->screen->cursor_current.col);
 }
 
+static void
+vte_reset_mouse_smooth_scroll_delta(VteTerminal *terminal,
+                                    GValueArray *params)
+{
+	terminal->pvt->mouse_smooth_scroll_delta = 0.;
+}
+
+struct decset_t {
+        gint16 setting;
+        /* offset in VteTerminalPrivate (> 0) or VteScreen (< 0) */
+        gint16 boffset;
+        gint16 ioffset;
+        gint16 poffset;
+        gint16 fvalue;
+        gint16 tvalue;
+        VteTerminalSequenceHandler reset, set;
+};
+
+static int
+decset_cmp(const void *va,
+           const void *vb)
+{
+        const struct decset_t *a = va;
+        const struct decset_t *b = vb;
+
+        return a->setting < b->setting ? -1 : a->setting > b->setting;
+}
+
 /* Manipulate certain terminal attributes. */
 static void
 vte_sequence_handler_decset_internal(VteTerminal *terminal,
@@ -577,192 +606,225 @@ vte_sequence_handler_decset_internal(VteTerminal *terminal,
 				     gboolean save,
 				     gboolean set)
 {
-	gboolean recognized = FALSE;
-	gpointer p;
-	guint i;
-	struct {
-		int setting;
-		gboolean *bvalue;
-		gint *ivalue;
-		gpointer *pvalue;
-		gpointer fvalue;
-		gpointer tvalue;
-		VteTerminalSequenceHandler reset, set;
-	} settings[] = {
+	static const struct decset_t const settings[] = {
+#define PRIV_OFFSET(member) (G_STRUCT_OFFSET(VteTerminalPrivate, member))
+#define SCREEN_OFFSET(member) (-G_STRUCT_OFFSET(VteScreen, member))
 		/* 1: Application/normal cursor keys. */
-		{1, NULL, &terminal->pvt->cursor_mode, NULL,
-		 GINT_TO_POINTER(VTE_KEYMODE_NORMAL),
-		 GINT_TO_POINTER(VTE_KEYMODE_APPLICATION),
+		{1, 0, PRIV_OFFSET(cursor_mode), 0,
+		 VTE_KEYMODE_NORMAL,
+		 VTE_KEYMODE_APPLICATION,
 		 NULL, NULL,},
 		/* 2: disallowed, we don't do VT52. */
-		{2, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
-		/* 3: disallowed, window size is set by user. */
-		{3, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
-		/* 4: Smooth scroll. */
-		{4, &terminal->pvt->smooth_scroll, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
-		 NULL, NULL,},
+		{2, 0, 0, 0, 0, 0, NULL, NULL,},
+                /* 3: DECCOLM set/reset to and from 132/80 columns */
+                {3, 0, 0, 0,
+                 FALSE,
+                 TRUE,
+                 NULL, NULL,},
 		/* 5: Reverse video. */
-		{5, &terminal->pvt->screen->reverse_mode, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{5, SCREEN_OFFSET(reverse_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 6: Origin mode: when enabled, cursor positioning is
 		 * relative to the scrolling region. */
-		{6, &terminal->pvt->screen->origin_mode, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{6, SCREEN_OFFSET(origin_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 7: Wraparound mode. */
-		{7, &terminal->pvt->flags.am, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{7, PRIV_OFFSET(flags.am), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 8: disallowed, keyboard repeat is set by user. */
-		{8, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{8, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 9: Send-coords-on-click. */
-		{9, NULL, &terminal->pvt->mouse_tracking_mode, NULL,
-		 GINT_TO_POINTER(0),
-		 GINT_TO_POINTER(MOUSE_TRACKING_SEND_XY_ON_CLICK),
-		 NULL, NULL,},
+		{9, 0, PRIV_OFFSET(mouse_tracking_mode), 0,
+		 0,
+		 MOUSE_TRACKING_SEND_XY_ON_CLICK,
+		 vte_reset_mouse_smooth_scroll_delta,
+		 vte_reset_mouse_smooth_scroll_delta,},
 		/* 12: disallowed, cursor blinks is set by user. */
-		{12, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{12, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 18: print form feed. */
 		/* 19: set print extent to full screen. */
 		/* 25: Cursor visible. */
-		{25, &terminal->pvt->cursor_visible, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{25, PRIV_OFFSET(cursor_visible), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 30/rxvt: disallowed, scrollbar visibility is set by user. */
-		{30, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{30, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 35/rxvt: disallowed, fonts set by user. */
-		{35, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{35, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 38: enter Tektronix mode. */
-		/* 40: disallowed, the user sizes dynamically. */
-		{40, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+                /* 40: Enable DECCOLM mode. */
+                {40, PRIV_OFFSET(deccolm_mode), 0, 0,
+                 FALSE,
+                 TRUE,
+                 NULL, NULL,},
 		/* 41: more(1) fix. */
 		/* 42: Enable NLS replacements. */
-		{42, &terminal->pvt->nrc_mode, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{42, PRIV_OFFSET(nrc_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 44: Margin bell. */
-		{44, &terminal->pvt->margin_bell, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{44, PRIV_OFFSET(margin_bell), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 47: Alternate screen. */
-		{47, NULL, NULL, (gpointer) &terminal->pvt->screen,
-		 &terminal->pvt->normal_screen,
-		 &terminal->pvt->alternate_screen,
+		{47, 0, 0, PRIV_OFFSET(screen),
+		 PRIV_OFFSET(normal_screen),
+                 PRIV_OFFSET(alternate_screen),
 		 NULL, NULL,},
 		/* 66: Keypad mode. */
-		{66, &terminal->pvt->keypad_mode, NULL, NULL,
-		 GINT_TO_POINTER(VTE_KEYMODE_NORMAL),
-		 GINT_TO_POINTER(VTE_KEYMODE_APPLICATION),
+		{66, PRIV_OFFSET(keypad_mode), 0, 0,
+		 VTE_KEYMODE_NORMAL,
+		 VTE_KEYMODE_APPLICATION,
 		 NULL, NULL,},
 		/* 67: disallowed, backspace key policy is set by user. */
-		{67, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{67, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 1000: Send-coords-on-button. */
-		{1000, NULL, &terminal->pvt->mouse_tracking_mode, NULL,
-		 GINT_TO_POINTER(0),
-		 GINT_TO_POINTER(MOUSE_TRACKING_SEND_XY_ON_BUTTON),
-		 NULL, NULL,},
+		{1000, 0, PRIV_OFFSET(mouse_tracking_mode), 0,
+		 0,
+		 MOUSE_TRACKING_SEND_XY_ON_BUTTON,
+		 vte_reset_mouse_smooth_scroll_delta,
+		 vte_reset_mouse_smooth_scroll_delta,},
 		/* 1001: Hilite tracking. */
-		{1001, NULL, &terminal->pvt->mouse_tracking_mode, NULL,
-		 GINT_TO_POINTER(0),
-		 GINT_TO_POINTER(MOUSE_TRACKING_HILITE_TRACKING),
-		 NULL, NULL,},
+		{1001, 0, PRIV_OFFSET(mouse_tracking_mode), 0,
+		 (0),
+		 (MOUSE_TRACKING_HILITE_TRACKING),
+		 vte_reset_mouse_smooth_scroll_delta,
+		 vte_reset_mouse_smooth_scroll_delta,},
 		/* 1002: Cell motion tracking. */
-		{1002, NULL, &terminal->pvt->mouse_tracking_mode, NULL,
-		 GINT_TO_POINTER(0),
-		 GINT_TO_POINTER(MOUSE_TRACKING_CELL_MOTION_TRACKING),
-		 NULL, NULL,},
+		{1002, 0, PRIV_OFFSET(mouse_tracking_mode), 0,
+		 (0),
+		 (MOUSE_TRACKING_CELL_MOTION_TRACKING),
+		 vte_reset_mouse_smooth_scroll_delta,
+		 vte_reset_mouse_smooth_scroll_delta,},
 		/* 1003: All motion tracking. */
-		{1003, NULL, &terminal->pvt->mouse_tracking_mode, NULL,
-		 GINT_TO_POINTER(0),
-		 GINT_TO_POINTER(MOUSE_TRACKING_ALL_MOTION_TRACKING),
-		 NULL, NULL,},
+		{1003, 0, PRIV_OFFSET(mouse_tracking_mode), 0,
+		 (0),
+		 (MOUSE_TRACKING_ALL_MOTION_TRACKING),
+		 vte_reset_mouse_smooth_scroll_delta,
+		 vte_reset_mouse_smooth_scroll_delta,},
 		/* 1006: Extended mouse coordinates. */
-		{1006, &terminal->pvt->mouse_xterm_extension, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1006, PRIV_OFFSET(mouse_xterm_extension), 0, 0,
+		 FALSE,
+		 TRUE,
+		 NULL, NULL,},
+		/* 1007: Alternate screen scroll. */
+		{1007, PRIV_OFFSET(alternate_screen_scroll), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 1010/rxvt: disallowed, scroll-on-output is set by user. */
-		{1010, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{1010, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 1011/rxvt: disallowed, scroll-on-keypress is set by user. */
-		{1011, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{1011, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 1015/urxvt: Extended mouse coordinates. */
-		{1015, &terminal->pvt->mouse_urxvt_extension, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1015, PRIV_OFFSET(mouse_urxvt_extension), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 1035: disallowed, don't know what to do with it. */
-		{1035, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{1035, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 1036: Meta-sends-escape. */
-		{1036, &terminal->pvt->meta_sends_escape, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1036, PRIV_OFFSET(meta_sends_escape), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
 		/* 1037: disallowed, delete key policy is set by user. */
-		{1037, NULL, NULL, NULL, NULL, NULL, NULL, NULL,},
+		{1037, 0, 0, 0, 0, 0, NULL, NULL,},
 		/* 1047: Use alternate screen buffer. */
-		{1047, NULL, NULL, (gpointer) &terminal->pvt->screen,
-		 &terminal->pvt->normal_screen,
-		 &terminal->pvt->alternate_screen,
+		{1047, 0, 0, PRIV_OFFSET(screen),
+		 PRIV_OFFSET(normal_screen),
+		 PRIV_OFFSET(alternate_screen),
 		 NULL, NULL,},
 		/* 1048: Save/restore cursor position. */
-		{1048, NULL, NULL, NULL,
-		 NULL,
-		 NULL,
+		{1048, 0, 0, 0,
+		 0,
+		 0,
 		 vte_sequence_handler_rc,
 		 vte_sequence_handler_sc,},
 		/* 1049: Use alternate screen buffer, saving the cursor
 		 * position. */
-		{1049, NULL, NULL, (gpointer) &terminal->pvt->screen,
-		 &terminal->pvt->normal_screen,
-		 &terminal->pvt->alternate_screen,
+		{1049, 0, 0, PRIV_OFFSET(screen),
+		 PRIV_OFFSET(normal_screen),
+		 PRIV_OFFSET(alternate_screen),
 		 vte_sequence_handler_rc,
 		 vte_sequence_handler_sc,},
 		/* 1051: Sun function key mode. */
-		{1051, NULL, NULL, (gpointer) &terminal->pvt->sun_fkey_mode,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1051, PRIV_OFFSET(sun_fkey_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL},
 		/* 1052: HP function key mode. */
-		{1052, NULL, NULL, (gpointer) &terminal->pvt->hp_fkey_mode,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1052, PRIV_OFFSET(hp_fkey_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL},
 		/* 1060: Legacy function key mode. */
-		{1060, NULL, NULL, (gpointer) &terminal->pvt->legacy_fkey_mode,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1060, PRIV_OFFSET(legacy_fkey_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL},
 		/* 1061: VT220 function key mode. */
-		{1061, NULL, NULL, (gpointer) &terminal->pvt->vt220_fkey_mode,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{1061, PRIV_OFFSET(vt220_fkey_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL},
 		/* 2004: Bracketed paste mode. */
-		{2004, &terminal->pvt->screen->bracketed_paste_mode, NULL, NULL,
-		 GINT_TO_POINTER(FALSE),
-		 GINT_TO_POINTER(TRUE),
+		{2004, PRIV_OFFSET(bracketed_paste_mode), 0, 0,
+		 FALSE,
+		 TRUE,
 		 NULL, NULL,},
+#undef PRIV_OFFSET
+#undef SCREEN_OFFSET
 	};
+        struct decset_t key;
+        struct decset_t *found;
 
 	/* Handle the setting. */
-	for (i = 0; i < G_N_ELEMENTS(settings); i++)
-	if (settings[i].setting == setting) {
-		recognized = TRUE;
+        key.setting = setting;
+        found = bsearch(&key, settings, G_N_ELEMENTS(settings), sizeof(settings[0]), decset_cmp);
+        if (!found) {
+		_vte_debug_print (VTE_DEBUG_MISC,
+				  "DECSET/DECRESET mode %d not recognized, ignoring.\n",
+				  setting);
+                return;
+	}
+
+        key = *found;
+        do {
+                gboolean *bvalue = NULL;
+                gint *ivalue = NULL;
+                gpointer *pvalue = NULL, pfvalue = NULL, ptvalue = NULL;
+                gpointer p;
+
 		/* Handle settings we want to ignore. */
-		if ((settings[i].fvalue == settings[i].tvalue) &&
-		    (settings[i].set == NULL) &&
-		    (settings[i].reset == NULL)) {
-			continue;
+		if ((key.fvalue == key.tvalue) &&
+		    (key.set == NULL) &&
+		    (key.reset == NULL)) {
+			break;
 		}
+
+#define STRUCT_MEMBER_P(type,total_offset) \
+                (type) (total_offset >= 0 ? G_STRUCT_MEMBER_P(terminal->pvt, total_offset) : G_STRUCT_MEMBER_P(terminal->pvt->screen, -total_offset))
+
+                if (key.boffset) {
+                        bvalue = STRUCT_MEMBER_P(gboolean*, key.boffset);
+                } else if (key.ioffset) {
+                        ivalue = STRUCT_MEMBER_P(int*, key.ioffset);
+                } else if (key.poffset) {
+                        pvalue = STRUCT_MEMBER_P(gpointer*, key.poffset);
+                        pfvalue = STRUCT_MEMBER_P(gpointer, key.fvalue);
+                        ptvalue = STRUCT_MEMBER_P(gpointer, key.tvalue);
+                }
+#undef STRUCT_MEMBER_P
 
 		/* Read the old setting. */
 		if (restore) {
@@ -775,16 +837,14 @@ vte_sequence_handler_decset_internal(VteTerminal *terminal,
 		}
 		/* Save the current setting. */
 		if (save) {
-			if (settings[i].bvalue) {
-				set = *(settings[i].bvalue) != FALSE;
+			if (bvalue) {
+				set = *(bvalue) != FALSE;
 			} else
-			if (settings[i].ivalue) {
-				set = *(settings[i].ivalue) ==
-				      GPOINTER_TO_INT(settings[i].tvalue);
+			if (ivalue) {
+                                set = *(ivalue) == (int)key.tvalue;
 			} else
-			if (settings[i].pvalue) {
-				set = *(settings[i].pvalue) ==
-				      settings[i].tvalue;
+			if (pvalue) {
+				set = *(pvalue) == ptvalue;
 			}
 			_vte_debug_print(VTE_DEBUG_PARSE,
 					"Setting %d is %s, saving.\n",
@@ -798,27 +858,23 @@ vte_sequence_handler_decset_internal(VteTerminal *terminal,
 			_vte_debug_print(VTE_DEBUG_PARSE,
 					"Setting %d to %s.\n",
 					setting, set ? "set" : "unset");
-			if (settings[i].set && set) {
-				settings[i].set (terminal, NULL);
+			if (key.set && set) {
+				key.set (terminal, NULL);
 			}
-			if (settings[i].bvalue) {
-				*(settings[i].bvalue) = set;
+			if (bvalue) {
+				*(bvalue) = set;
 			} else
-			if (settings[i].ivalue) {
-				*(settings[i].ivalue) = set ?
-					GPOINTER_TO_INT(settings[i].tvalue) :
-					GPOINTER_TO_INT(settings[i].fvalue);
+			if (ivalue) {
+                                *(ivalue) = set ? (int)key.tvalue : (int)key.fvalue;
 			} else
-			if (settings[i].pvalue) {
-				*(settings[i].pvalue) = set ?
-					settings[i].tvalue :
-					settings[i].fvalue;
+			if (pvalue) {
+                                *(pvalue) = set ? ptvalue : pfvalue;
 			}
-			if (settings[i].reset && !set) {
-				settings[i].reset (terminal, NULL);
+			if (key.reset && !set) {
+				key.reset (terminal, NULL);
 			}
 		}
-	}
+	} while (0);
 
 	/* Do whatever's necessary when the setting changes. */
 	switch (setting) {
@@ -827,21 +883,22 @@ vte_sequence_handler_decset_internal(VteTerminal *terminal,
 				"Entering application cursor mode.\n" :
 				"Leaving application cursor mode.\n");
 		break;
-#if 0		/* 3: disallowed, window size is set by user. */
 	case 3:
-		vte_terminal_emit_resize_window(terminal,
-						(set ? 132 : 80) *
-						terminal->char_width +
-						terminal->pvt->inner_border.left +
-                                                terminal->pvt->inner_border.right,
-						terminal->row_count *
-						terminal->char_height +
-						terminal->pvt->inner_border.top +
-                                                terminal->pvt->inner_border.bottom);
-		/* Request a resize and redraw. */
-		_vte_invalidate_all(terminal);
+                /* 3: DECCOLM set/reset to 132/80 columns mode */
+                if (terminal->pvt->deccolm_mode) {
+                        vte_terminal_emit_resize_window(terminal,
+                                                        (set ? 132 : 80) *
+                                                        terminal->char_width +
+                                                        terminal->pvt->inner_border.left +
+                                                        terminal->pvt->inner_border.right,
+                                                        terminal->row_count *
+                                                        terminal->char_height +
+                                                        terminal->pvt->inner_border.top +
+                                                        terminal->pvt->inner_border.bottom);
+                        /* Request a resize and redraw. */
+                        _vte_invalidate_all(terminal);
+                }
 		break;
-#endif
 	case 5:
 		/* Repaint everything in reverse mode. */
 		_vte_invalidate_all(terminal);
@@ -858,6 +915,7 @@ vte_sequence_handler_decset_internal(VteTerminal *terminal,
 		/* Clear the alternate screen if we're switching
 		 * to it, and home the cursor. */
 		if (set) {
+			_vte_terminal_set_default_attributes (terminal);
 			_vte_terminal_clear_screen (terminal);
 			_vte_terminal_home_cursor (terminal);
 		}
@@ -904,12 +962,6 @@ vte_sequence_handler_decset_internal(VteTerminal *terminal,
 		break;
 	default:
 		break;
-	}
-
-	if (!recognized) {
-		_vte_debug_print (VTE_DEBUG_MISC,
-				  "DECSET/DECRESET mode %d not recognized, ignoring.\n",
-				  setting);
 	}
 }
 
@@ -1092,7 +1144,9 @@ vte_sequence_handler_cd (VteTerminal *terminal, GValueArray *params)
 			rowdata = _vte_terminal_ring_append (terminal, FALSE);
 		}
 		/* Pad out the row. */
-		_vte_row_data_fill (rowdata, &screen->fill_defaults, terminal->column_count);
+		if (screen->fill_defaults.attr.back != VTE_DEFAULT_BG) {
+			_vte_row_data_fill (rowdata, &screen->fill_defaults, terminal->column_count);
+		}
 		rowdata->attr.soft_wrapped = 0;
 		/* Repaint this row. */
 		_vte_invalidate_cells(terminal,
@@ -1122,7 +1176,7 @@ vte_sequence_handler_ce (VteTerminal *terminal, GValueArray *params)
 		/* We've modified the display.  Make a note of it. */
 		terminal->pvt->text_deleted_flag = TRUE;
 	}
-	if (screen->fill_defaults.attr.back != VTE_DEF_BG) {
+	if (screen->fill_defaults.attr.back != VTE_DEFAULT_BG) {
 		/* Add enough cells to fill out the row. */
 		_vte_row_data_fill (rowdata, &screen->fill_defaults, terminal->column_count);
 	}
@@ -1251,10 +1305,14 @@ vte_sequence_handler_cs (VteTerminal *terminal, GValueArray *params)
 	screen->scrolling_region.start = start;
 	screen->scrolling_region.end = end;
 	screen->scrolling_restricted = TRUE;
-	/* Special case -- run wild, run free. */
 	if (screen->scrolling_region.start == 0 &&
 	    screen->scrolling_region.end == rows - 1) {
+		/* Special case -- run wild, run free. */
 		screen->scrolling_restricted = FALSE;
+	} else {
+		/* Maybe extend the ring -- bug 710483 */
+		while (_vte_ring_next(screen->row_data) < screen->insert_delta + rows)
+			_vte_ring_insert(screen->row_data, _vte_ring_next(screen->row_data));
 	}
 }
 
@@ -1287,11 +1345,15 @@ vte_sequence_handler_cS (VteTerminal *terminal, GValueArray *params)
 	screen->scrolling_region.start = start;
 	screen->scrolling_region.end = end;
 	screen->scrolling_restricted = TRUE;
-	/* Special case -- run wild, run free. */
 	rows = terminal->row_count;
 	if ((screen->scrolling_region.start == 0) &&
 	    (screen->scrolling_region.end == rows - 1)) {
+		/* Special case -- run wild, run free. */
 		screen->scrolling_restricted = FALSE;
+	} else {
+		/* Maybe extend the ring -- bug 710483 */
+		while (_vte_ring_next(screen->row_data) < screen->insert_delta + rows)
+			_vte_ring_insert(screen->row_data, _vte_ring_next(screen->row_data));
 	}
 	/* Clamp the cursor to the scrolling region. */
 	screen->cursor_current.row = CLAMP(screen->cursor_current.row,
@@ -1321,7 +1383,7 @@ vte_sequence_handler_cursor_lower_left (VteTerminal *terminal, GValueArray *para
 	screen->cursor_current.col = 0;
 }
 
-/* Move the cursor to the beginning of the next line, scrolling if necessary. */
+/* Move the cursor to the beginning of the next line, no scrolling. */
 static void
 vte_sequence_handler_cursor_next_line (VteTerminal *terminal, GValueArray *params)
 {
@@ -1329,7 +1391,7 @@ vte_sequence_handler_cursor_next_line (VteTerminal *terminal, GValueArray *param
 	vte_sequence_handler_DO (terminal, params);
 }
 
-/* Move the cursor to the beginning of the next line, scrolling if necessary. */
+/* Move the cursor to the beginning of the previous line, no scrolling. */
 static void
 vte_sequence_handler_cursor_preceding_line (VteTerminal *terminal, GValueArray *params)
 {
@@ -1383,7 +1445,7 @@ vte_sequence_handler_dc (VteTerminal *terminal, GValueArray *params)
 		/* Remove the column. */
 		if (col < len) {
 			_vte_row_data_remove (rowdata, col);
-			if (screen->fill_defaults.attr.back != VTE_DEF_BG) {
+			if (screen->fill_defaults.attr.back != VTE_DEFAULT_BG) {
 				_vte_row_data_fill (rowdata, &screen->fill_defaults, terminal->column_count);
 				len = terminal->column_count;
 			}
@@ -1754,7 +1816,7 @@ static void
 vte_sequence_handler_next_line (VteTerminal *terminal, GValueArray *params)
 {
 	terminal->pvt->screen->cursor_current.col = 0;
-	vte_sequence_handler_DO (terminal, params);
+	_vte_terminal_cursor_down (terminal);
 }
 
 /* No-op. */
@@ -1828,9 +1890,10 @@ vte_sequence_handler_scroll_down (VteTerminal *terminal, GValueArray *params)
 	_vte_terminal_scroll_text (terminal, val);
 }
 
-/* change color in the palette */
+/* Internal helper for changing color in the palette */
 static void
-vte_sequence_handler_change_color (VteTerminal *terminal, GValueArray *params)
+vte_sequence_handler_change_color_internal (VteTerminal *terminal, GValueArray *params,
+					    const char *terminator)
 {
 	gchar **pairs, *str = NULL;
 	GValue *value;
@@ -1857,20 +1920,18 @@ vte_sequence_handler_change_color (VteTerminal *terminal, GValueArray *params)
 		for (i = 0; pairs[i] && pairs[i + 1]; i += 2) {
 			idx = strtoul (pairs[i], (char **) NULL, 10);
 
-			if (idx >= VTE_DEF_FG)
+			if (idx >= VTE_DEFAULT_FG)
 				continue;
 
 			if (vte_parse_color (pairs[i + 1], &color)) {
-				terminal->pvt->palette[idx].red = color.red;
-				terminal->pvt->palette[idx].green = color.green;
-				terminal->pvt->palette[idx].blue = color.blue;
+                                _vte_terminal_set_color_internal(terminal, idx, VTE_COLOR_SOURCE_ESCAPE, &color);
 			} else if (strcmp (pairs[i + 1], "?") == 0) {
 				gchar buf[128];
+				PangoColor *c = _vte_terminal_get_color(terminal, idx);
+				g_assert(c != NULL);
 				g_snprintf (buf, sizeof (buf),
-					    _VTE_CAP_OSC "4;%u;rgb:%04x/%04x/%04x" BEL, idx,
-					    terminal->pvt->palette[idx].red,
-					    terminal->pvt->palette[idx].green,
-					    terminal->pvt->palette[idx].blue);
+					    _VTE_CAP_OSC "4;%u;rgb:%04x/%04x/%04x%s",
+					    idx, c->red, c->green, c->blue, terminator);
 				vte_terminal_feed_child (terminal, buf, -1);
 			}
 		}
@@ -1881,6 +1942,46 @@ vte_sequence_handler_change_color (VteTerminal *terminal, GValueArray *params)
 		/* emit the refresh as the palette has changed and previous
 		 * renders need to be updated. */
 		vte_terminal_emit_refresh_window (terminal);
+	}
+}
+
+/* Change color in the palette, BEL terminated */
+static void
+vte_sequence_handler_change_color_bel (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_color_internal (terminal, params, BEL);
+}
+
+/* Change color in the palette, ST terminated */
+static void
+vte_sequence_handler_change_color_st (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_color_internal (terminal, params, ST);
+}
+
+/* Reset color in the palette */
+static void
+vte_sequence_handler_reset_color (VteTerminal *terminal, GValueArray *params)
+{
+	GValue *value;
+	long idx, i;
+
+	if (params != NULL && params->n_values > 0) {
+		for (i = 0; i < params->n_values; i++) {
+			value = g_value_array_get_nth (params, i);
+
+			if (!G_VALUE_HOLDS_LONG (value))
+				continue;
+			idx = g_value_get_long (value);
+			if (idx < 0 || idx >= VTE_DEFAULT_FG)
+				continue;
+
+			_vte_terminal_set_color_internal(terminal, idx, VTE_COLOR_SOURCE_ESCAPE, NULL);
+		}
+	} else {
+		for (idx = 0; idx < VTE_DEFAULT_FG; idx++) {
+			_vte_terminal_set_color_internal(terminal, idx, VTE_COLOR_SOURCE_ESCAPE, NULL);
+		}
 	}
 }
 
@@ -2207,16 +2308,14 @@ static void
 vte_sequence_handler_up (VteTerminal *terminal, GValueArray *params)
 {
 	VteScreen *screen;
-	long start, end;
+	long start;
 
 	screen = terminal->pvt->screen;
 
 	if (screen->scrolling_restricted) {
 		start = screen->insert_delta + screen->scrolling_region.start;
-		end = screen->insert_delta + screen->scrolling_region.end;
 	} else {
 		start = screen->insert_delta;
-		end = start + terminal->row_count - 1;
 	}
 
 	screen->cursor_current.row = MAX(screen->cursor_current.row - 1, start);
@@ -2272,7 +2371,54 @@ vte_sequence_handler_vs (VteTerminal *terminal, GValueArray *params)
 						 visible. */
 }
 
-/* Handle ANSI color setting and related stuffs (SGR). */
+/* Parse parameters of SGR 38 or 48, starting at @index within @params.
+ * Returns the color index, or -1 on error.
+ * Increments @index to point to the last consumed parameter (not beyond). */
+static gint32
+vte_sequence_parse_sgr_38_48_parameters (GValueArray *params, unsigned int *index)
+{
+	if (*index < params->n_values) {
+		GValue *value0, *value1, *value2, *value3;
+		long param0, param1, param2, param3;
+		value0 = g_value_array_get_nth(params, *index);
+		if (G_UNLIKELY (!G_VALUE_HOLDS_LONG(value0)))
+			return -1;
+		param0 = g_value_get_long(value0);
+		switch (param0) {
+		case 2:
+			if (G_UNLIKELY (*index + 3 >= params->n_values))
+				return -1;
+			value1 = g_value_array_get_nth(params, *index + 1);
+			value2 = g_value_array_get_nth(params, *index + 2);
+			value3 = g_value_array_get_nth(params, *index + 3);
+			if (G_UNLIKELY (!(G_VALUE_HOLDS_LONG(value1) && G_VALUE_HOLDS_LONG(value2) && G_VALUE_HOLDS_LONG(value3))))
+				return -1;
+			param1 = g_value_get_long(value1);
+			param2 = g_value_get_long(value2);
+			param3 = g_value_get_long(value3);
+			if (G_UNLIKELY (param1 < 0 || param1 >= 256 || param2 < 0 || param2 >= 256 || param3 < 0 || param3 >= 256))
+				return -1;
+			*index += 3;
+			return VTE_RGB_COLOR | (param1 << 16) | (param2 << 8) | param3;
+		case 5:
+			if (G_UNLIKELY (*index + 1 >= params->n_values))
+				return -1;
+			value1 = g_value_array_get_nth(params, *index + 1);
+			if (G_UNLIKELY (!G_VALUE_HOLDS_LONG(value1)))
+				return -1;
+			param1 = g_value_get_long(value1);
+			if (G_UNLIKELY (param1 < 0 || param1 >= 256))
+				return -1;
+			*index += 1;
+			return param1;
+		}
+	}
+	return -1;
+}
+
+/* Handle ANSI color setting and related stuffs (SGR).
+ * @params contains the values split at semicolons, with sub arrays splitting at colons
+ * wherever colons were encountered. */
 static void
 vte_sequence_handler_character_attributes (VteTerminal *terminal, GValueArray *params)
 {
@@ -2283,8 +2429,36 @@ vte_sequence_handler_character_attributes (VteTerminal *terminal, GValueArray *p
 	param = 0;
 	/* Step through each numeric parameter. */
 	for (i = 0; (params != NULL) && (i < params->n_values); i++) {
-		/* If this parameter isn't a number, skip it. */
 		value = g_value_array_get_nth(params, i);
+		/* If this parameter is a GValueArray, it can be a fully colon separated 38 or 48
+		 * (see below for details). */
+		if (G_UNLIKELY (G_VALUE_HOLDS_BOXED(value))) {
+			GValueArray *subvalues = g_value_get_boxed(value);
+			GValue *value0;
+			long param0;
+			gint32 color;
+			unsigned int index = 1;
+
+			value0 = g_value_array_get_nth(subvalues, 0);
+			if (G_UNLIKELY (!G_VALUE_HOLDS_LONG(value0)))
+				continue;
+			param0 = g_value_get_long(value0);
+			if (G_UNLIKELY (param0 != 38 && param0 != 48))
+				continue;
+			color = vte_sequence_parse_sgr_38_48_parameters(subvalues, &index);
+			/* Bail out on additional colon-separated values. */
+			if (G_UNLIKELY (index != subvalues->n_values - 1))
+				continue;
+			if (G_LIKELY (color != -1)) {
+				if (param0 == 38) {
+					terminal->pvt->screen->defaults.attr.fore = color;
+				} else {
+					terminal->pvt->screen->defaults.attr.back = color;
+				}
+			}
+			continue;
+		}
+		/* If this parameter is not a GValueArray and not a number either, skip it. */
 		if (!G_VALUE_HOLDS_LONG(value)) {
 			continue;
 		}
@@ -2350,30 +2524,53 @@ vte_sequence_handler_character_attributes (VteTerminal *terminal, GValueArray *p
 		case 35:
 		case 36:
 		case 37:
-			terminal->pvt->screen->defaults.attr.fore = param - 30;
+			terminal->pvt->screen->defaults.attr.fore = VTE_LEGACY_COLORS_OFFSET + param - 30;
 			break;
 		case 38:
+		case 48:
 		{
-			/* The format looks like: ^[[38;5;COLORNUMBERm,
-			   so look for COLORNUMBER here. */
-			if ((i + 2) < params->n_values){
-				GValue *value1, *value2;
-				long param1, param2;
-				value1 = g_value_array_get_nth(params, i + 1);
-				value2 = g_value_array_get_nth(params, i + 2);
-				if (G_UNLIKELY (!(G_VALUE_HOLDS_LONG(value1) && G_VALUE_HOLDS_LONG(value2))))
+			/* The format looks like:
+			 * - 256 color indexed palette:
+			 *   - ^[[38;5;INDEXm
+			 *   - ^[[38;5:INDEXm
+			 *   - ^[[38:5:INDEXm
+			 * - true colors:
+			 *   - ^[[38;2;RED;GREEN;BLUEm
+			 *   - ^[[38;2:RED:GREEN:BLUEm
+			 *   - ^[[38:2:RED:GREEN:BLUEm
+			 * See bug 685759 for details.
+			 * The fully colon versions were handled above separately. The code is reached
+			 * if the first separator is a semicolon. */
+			if ((i + 1) < params->n_values) {
+				gint32 color;
+				GValue *value1 = g_value_array_get_nth(params, ++i);
+				if (G_VALUE_HOLDS_LONG(value1)) {
+					/* Only semicolons as separators. */
+					color = vte_sequence_parse_sgr_38_48_parameters(params, &i);
+				} else if (G_VALUE_HOLDS_BOXED(value1)) {
+					/* The first separator was a semicolon, the rest are colons. */
+					GValueArray *subvalues = g_value_get_boxed(value1);
+					unsigned int index = 0;
+					color = vte_sequence_parse_sgr_38_48_parameters(subvalues, &index);
+					/* Bail out on additional colon-separated values. */
+					if (G_UNLIKELY (index != subvalues->n_values - 1))
+						break;
+				} else {
 					break;
-				param1 = g_value_get_long(value1);
-				param2 = g_value_get_long(value2);
-				if (G_LIKELY (param1 == 5 && param2 >= 0 && param2 < 256))
-					terminal->pvt->screen->defaults.attr.fore = param2;
-				i += 2;
+				}
+				if (G_LIKELY (color != -1)) {
+					if (param == 38) {
+						terminal->pvt->screen->defaults.attr.fore = color;
+					} else {
+						terminal->pvt->screen->defaults.attr.back = color;
+					}
+				}
 			}
 			break;
 		}
 		case 39:
 			/* default foreground */
-			terminal->pvt->screen->defaults.attr.fore = VTE_DEF_FG;
+			terminal->pvt->screen->defaults.attr.fore = VTE_DEFAULT_FG;
 			break;
 		case 40:
 		case 41:
@@ -2383,30 +2580,12 @@ vte_sequence_handler_character_attributes (VteTerminal *terminal, GValueArray *p
 		case 45:
 		case 46:
 		case 47:
-			terminal->pvt->screen->defaults.attr.back = param - 40;
+			terminal->pvt->screen->defaults.attr.back = VTE_LEGACY_COLORS_OFFSET + param - 40;
 			break;
-		case 48:
-		{
-			/* The format looks like: ^[[48;5;COLORNUMBERm,
-			   so look for COLORNUMBER here. */
-			if ((i + 2) < params->n_values){
-				GValue *value1, *value2;
-				long param1, param2;
-				value1 = g_value_array_get_nth(params, i + 1);
-				value2 = g_value_array_get_nth(params, i + 2);
-				if (G_UNLIKELY (!(G_VALUE_HOLDS_LONG(value1) && G_VALUE_HOLDS_LONG(value2))))
-					break;
-				param1 = g_value_get_long(value1);
-				param2 = g_value_get_long(value2);
-				if (G_LIKELY (param1 == 5 && param2 >= 0 && param2 < 256))
-					terminal->pvt->screen->defaults.attr.back = param2;
-				i += 2;
-			}
-			break;
-		}
+	     /* case 48: was handled above at 38 to avoid code duplication */
 		case 49:
 			/* default background */
-			terminal->pvt->screen->defaults.attr.back = VTE_DEF_BG;
+			terminal->pvt->screen->defaults.attr.back = VTE_DEFAULT_BG;
 			break;
 		case 90:
 		case 91:
@@ -2416,7 +2595,7 @@ vte_sequence_handler_character_attributes (VteTerminal *terminal, GValueArray *p
 		case 95:
 		case 96:
 		case 97:
-			terminal->pvt->screen->defaults.attr.fore = param - 90 + VTE_COLOR_BRIGHT_OFFSET;
+			terminal->pvt->screen->defaults.attr.fore = VTE_LEGACY_COLORS_OFFSET + param - 90 + VTE_COLOR_BRIGHT_OFFSET;
 			break;
 		case 100:
 		case 101:
@@ -2426,7 +2605,7 @@ vte_sequence_handler_character_attributes (VteTerminal *terminal, GValueArray *p
 		case 105:
 		case 106:
 		case 107:
-			terminal->pvt->screen->defaults.attr.back = param - 100 + VTE_COLOR_BRIGHT_OFFSET;
+			terminal->pvt->screen->defaults.attr.back = VTE_LEGACY_COLORS_OFFSET + param - 100 + VTE_COLOR_BRIGHT_OFFSET;
 			break;
 		}
 	}
@@ -3138,7 +3317,6 @@ static void
 vte_sequence_handler_window_manipulation (VteTerminal *terminal, GValueArray *params)
 {
 	GdkScreen *gscreen;
-	VteScreen *screen;
 	GValue *value;
 	GtkWidget *widget;
 	char buf[128];
@@ -3148,7 +3326,6 @@ vte_sequence_handler_window_manipulation (VteTerminal *terminal, GValueArray *pa
 	GtkAllocation allocation;
 
 	widget = &terminal->widget;
-	screen = terminal->pvt->screen;
 
 	for (i = 0; ((params != NULL) && (i < params->n_values)); i++) {
 		arg1 = arg2 = -1;
@@ -3364,9 +3541,11 @@ vte_sequence_handler_window_manipulation (VteTerminal *terminal, GValueArray *pa
 	}
 }
 
-/* Change the color of the cursor */
+/* Internal helper for setting/querying special colors */
 static void
-vte_sequence_handler_change_cursor_color (VteTerminal *terminal, GValueArray *params)
+vte_sequence_handler_change_special_color_internal (VteTerminal *terminal, GValueArray *params,
+						    int index, int index_fallback, int osc,
+						    const char *terminator)
 {
 	gchar *name = NULL;
 	GValue *value;
@@ -3384,19 +3563,136 @@ vte_sequence_handler_change_cursor_color (VteTerminal *terminal, GValueArray *pa
 			return;
 
 		if (vte_parse_color (name, &color))
-			vte_terminal_set_color_cursor (terminal, &color);
+			_vte_terminal_set_color_internal(terminal, index, VTE_COLOR_SOURCE_ESCAPE, &color);
 		else if (strcmp (name, "?") == 0) {
 			gchar buf[128];
+			PangoColor *c = _vte_terminal_get_color(terminal, index);
+			if (c == NULL && index_fallback != -1)
+				c = _vte_terminal_get_color(terminal, index_fallback);
+			g_assert(c != NULL);
 			g_snprintf (buf, sizeof (buf),
-				    _VTE_CAP_OSC "12;rgb:%04x/%04x/%04x" BEL,
-				    terminal->pvt->palette[VTE_CUR_BG].red,
-				    terminal->pvt->palette[VTE_CUR_BG].green,
-				    terminal->pvt->palette[VTE_CUR_BG].blue);
+				    _VTE_CAP_OSC "%d;rgb:%04x/%04x/%04x%s",
+				    osc, c->red, c->green, c->blue, terminator);
 			vte_terminal_feed_child (terminal, buf, -1);
 		}
 
 		g_free (name);
 	}
+}
+
+/* Change the default foreground cursor, BEL terminated */
+static void
+vte_sequence_handler_change_foreground_color_bel (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_DEFAULT_FG, -1, 10, BEL);
+}
+
+/* Change the default foreground cursor, ST terminated */
+static void
+vte_sequence_handler_change_foreground_color_st (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_DEFAULT_FG, -1, 10, ST);
+}
+
+/* Reset the default foreground color */
+static void
+vte_sequence_handler_reset_foreground_color (VteTerminal *terminal, GValueArray *params)
+{
+	_vte_terminal_set_color_internal(terminal, VTE_DEFAULT_FG, VTE_COLOR_SOURCE_ESCAPE, NULL);
+}
+
+/* Change the default background cursor, BEL terminated */
+static void
+vte_sequence_handler_change_background_color_bel (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_DEFAULT_BG, -1, 11, BEL);
+}
+
+/* Change the default background cursor, ST terminated */
+static void
+vte_sequence_handler_change_background_color_st (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_DEFAULT_BG, -1, 11, ST);
+}
+
+/* Reset the default background color */
+static void
+vte_sequence_handler_reset_background_color (VteTerminal *terminal, GValueArray *params)
+{
+	_vte_terminal_set_color_internal(terminal, VTE_DEFAULT_BG, VTE_COLOR_SOURCE_ESCAPE, NULL);
+}
+
+/* Change the color of the cursor, BEL terminated */
+static void
+vte_sequence_handler_change_cursor_color_bel (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_CURSOR_BG, VTE_DEFAULT_FG, 12, BEL);
+}
+
+/* Change the color of the cursor, ST terminated */
+static void
+vte_sequence_handler_change_cursor_color_st (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_CURSOR_BG, VTE_DEFAULT_FG, 12, ST);
+}
+
+/* Reset the color of the cursor */
+static void
+vte_sequence_handler_reset_cursor_color (VteTerminal *terminal, GValueArray *params)
+{
+	_vte_terminal_set_color_internal(terminal, VTE_CURSOR_BG, VTE_COLOR_SOURCE_ESCAPE, NULL);
+}
+
+/* Change the highlight background color, BEL terminated */
+static void
+vte_sequence_handler_change_highlight_background_color_bel (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_HIGHLIGHT_BG, VTE_DEFAULT_FG, 17, BEL);
+}
+
+/* Change the highlight background color, ST terminated */
+static void
+vte_sequence_handler_change_highlight_background_color_st (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_HIGHLIGHT_BG, VTE_DEFAULT_FG, 17, ST);
+}
+
+/* Reset the highlight background color */
+static void
+vte_sequence_handler_reset_highlight_background_color (VteTerminal *terminal, GValueArray *params)
+{
+	_vte_terminal_set_color_internal(terminal, VTE_HIGHLIGHT_BG, VTE_COLOR_SOURCE_ESCAPE, NULL);
+}
+
+/* Change the highlight foreground color, BEL terminated */
+static void
+vte_sequence_handler_change_highlight_foreground_color_bel (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_HIGHLIGHT_FG, VTE_DEFAULT_BG, 19, BEL);
+}
+
+/* Change the highlight foreground color, ST terminated */
+static void
+vte_sequence_handler_change_highlight_foreground_color_st (VteTerminal *terminal, GValueArray *params)
+{
+	vte_sequence_handler_change_special_color_internal (terminal, params,
+							    VTE_HIGHLIGHT_FG, VTE_DEFAULT_BG, 19, ST);
+}
+
+/* Reset the highlight foreground color */
+static void
+vte_sequence_handler_reset_highlight_foreground_color (VteTerminal *terminal, GValueArray *params)
+{
+	_vte_terminal_set_color_internal(terminal, VTE_HIGHLIGHT_FG, VTE_COLOR_SOURCE_ESCAPE, NULL);
 }
 
 

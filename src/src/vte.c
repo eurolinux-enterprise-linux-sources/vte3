@@ -3,26 +3,26 @@
  * Copyright (C) 2001-2004,2009,2010 Red Hat, Inc.
  * Copyright © 2008, 2009, 2010 Christian Persch
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 /**
  * SECTION: vte-terminal
  * @short_description: A terminal widget implementation
  *
- * A VteTerminal is a terminal emulator implemented as a GTK2 widget.
+ * A VteTerminal is a terminal emulator implemented as a GTK3 widget.
  */
 
 #include <config.h>
@@ -31,7 +31,6 @@
 
 #include "vte.h"
 #include "vte-private.h"
-#include "vte-gtk-compat.h"
 
 #ifdef HAVE_WCHAR_H
 #include <wchar.h>
@@ -72,13 +71,6 @@ static inline double round(double x) {
 		return ceil(x);
 	}
 }
-#endif
-
-#if GTK_CHECK_VERSION (2, 90, 7)
-#define GDK_KEY(symbol) GDK_KEY_##symbol
-#else
-#include <gdk/gdkkeysyms.h>
-#define GDK_KEY(symbol) GDK_##symbol
 #endif
 
 #ifndef HAVE_WINT_T
@@ -158,12 +150,10 @@ static guint signals[LAST_SIGNAL];
 
 enum {
         PROP_0,
-#if GTK_CHECK_VERSION (2, 91, 2)
         PROP_HADJUSTMENT,
         PROP_VADJUSTMENT,
         PROP_HSCROLL_POLICY,
         PROP_VSCROLL_POLICY,
-#endif
         PROP_ALLOW_BOLD,
         PROP_AUDIBLE_BELL,
         PROP_BACKGROUND_IMAGE_FILE,
@@ -185,6 +175,7 @@ enum {
         PROP_MOUSE_POINTER_AUTOHIDE,
         PROP_PTY,
         PROP_PTY_OBJECT,
+        PROP_REWRAP_ON_RESIZE,
         PROP_SCROLL_BACKGROUND,
         PROP_SCROLLBACK_LINES,
         PROP_SCROLL_ON_KEYSTROKE,
@@ -294,7 +285,6 @@ _vte_incoming_chunks_reverse(struct _vte_incoming_chunk *chunk)
 	return prev;
 }
 
-#if GTK_CHECK_VERSION (2, 99, 0)
 #ifdef VTE_DEBUG
 G_DEFINE_TYPE_WITH_CODE(VteTerminal, vte_terminal, GTK_TYPE_WIDGET,
                         g_type_add_class_private (g_define_type_id, sizeof (VteTerminalClassPrivate));
@@ -307,16 +297,6 @@ G_DEFINE_TYPE_WITH_CODE(VteTerminal, vte_terminal, GTK_TYPE_WIDGET,
                         g_type_add_class_private (g_define_type_id, sizeof (VteTerminalClassPrivate));
                         G_IMPLEMENT_INTERFACE(GTK_TYPE_SCROLLABLE, NULL))
 #endif
-#else
-#ifdef VTE_DEBUG
-G_DEFINE_TYPE_WITH_CODE(VteTerminal, vte_terminal, GTK_TYPE_WIDGET,
-		if (_vte_debug_on(VTE_DEBUG_LIFECYCLE)) {
-			g_printerr("vte_terminal_get_type()\n");
-		})
-#else
-G_DEFINE_TYPE(VteTerminal, vte_terminal, GTK_TYPE_WIDGET)
-#endif
-#endif /* GTK 3.0 */
 
 /* Indexes in the "palette" color array for the dim colors.
  * Only the first %VTE_LEGACY_COLOR_SET_SIZE colors have dim versions.  */
@@ -342,10 +322,11 @@ _vte_terminal_ring_insert (VteTerminal *terminal, glong position, gboolean fill)
 	VteRing *ring = terminal->pvt->screen->row_data;
 	while (G_UNLIKELY (_vte_ring_next (ring) < position)) {
 		row = _vte_ring_append (ring);
-		_vte_row_data_fill (row, &terminal->pvt->screen->fill_defaults, terminal->column_count);
+		if (terminal->pvt->screen->fill_defaults.attr.back != VTE_DEFAULT_BG)
+			_vte_row_data_fill (row, &terminal->pvt->screen->fill_defaults, terminal->column_count);
 	}
 	row = _vte_ring_insert (ring, position);
-	if (fill)
+	if (fill && terminal->pvt->screen->fill_defaults.attr.back != VTE_DEFAULT_BG)
 		_vte_row_data_fill (row, &terminal->pvt->screen->fill_defaults, terminal->column_count);
 	return row;
 }
@@ -381,7 +362,7 @@ _vte_invalidate_cells(VteTerminal *terminal,
 		      glong column_start, gint column_count,
 		      glong row_start, gint row_count)
 {
-	VteRegionRectangle rect;
+	cairo_rectangle_int_t rect;
 	glong i;
 
 	if (!column_count || !row_count) {
@@ -460,7 +441,7 @@ _vte_invalidate_cells(VteTerminal *terminal,
 	if (terminal->pvt->active != NULL) {
 		terminal->pvt->update_regions = g_slist_prepend (
 				terminal->pvt->update_regions,
-				gdk_region_rectangle (&rect));
+				cairo_region_create_rectangle (&rect));
 		/* Wait a bit before doing any invalidation, just in
 		 * case updates are coming in really soon. */
 		add_update_timeout (terminal);
@@ -500,7 +481,7 @@ _vte_invalidate_region (VteTerminal *terminal,
 void
 _vte_invalidate_all(VteTerminal *terminal)
 {
-	VteRegionRectangle rect;
+	cairo_rectangle_int_t rect;
 	GtkAllocation allocation;
 
 	g_assert(VTE_IS_TERMINAL(terminal));
@@ -526,7 +507,7 @@ _vte_invalidate_all(VteTerminal *terminal)
 
 	if (terminal->pvt->active != NULL) {
 		terminal->pvt->update_regions = g_slist_prepend (NULL,
-				gdk_region_rectangle (&rect));
+				cairo_region_create_rectangle (&rect));
 		/* Wait a bit before doing any invalidation, just in
 		 * case updates are coming in really soon. */
 		add_update_timeout (terminal);
@@ -2499,29 +2480,60 @@ vte_terminal_new(void)
 	return g_object_new(VTE_TYPE_TERMINAL, NULL);
 }
 
-/* Set up a palette entry with a more-or-less match for the requested color. */
-static void
-vte_terminal_set_color_internal(VteTerminal *terminal, int entry,
-				const GdkColor *proposed)
+/*
+ * Get the actually used color from the palette.
+ * The return value can be NULL only if entry is one of VTE_CURSOR_BG,
+ * VTE_HIGHLIGHT_BG or VTE_HIGHLIGHT_FG.
+ */
+PangoColor *
+_vte_terminal_get_color(const VteTerminal *terminal, int entry)
 {
-	PangoColor *color;
+	VtePaletteColor *palette_color = &terminal->pvt->palette[entry];
+	guint source;
+	for (source = 0; source < G_N_ELEMENTS(palette_color->sources); source++)
+		if (palette_color->sources[source].is_set)
+			return &palette_color->sources[source].color;
+	return NULL;
+}
 
-	color = &terminal->pvt->palette[entry];
+/* Set up a palette entry with a more-or-less match for the requested color. */
+void
+_vte_terminal_set_color_internal(VteTerminal *terminal,
+                                 int entry,
+                                 int source,
+                                 const GdkColor *proposed)
+{
+	VtePaletteColor *palette_color = &terminal->pvt->palette[entry];
 
-	if (color->red == proposed->red &&
-	    color->green == proposed->green &&
-	    color->blue == proposed->blue) {
-		return;
-	}
-
-	_vte_debug_print(VTE_DEBUG_MISC,
-			"Set color[%d] to (%04x,%04x,%04x).\n", entry,
-			proposed->red, proposed->green, proposed->blue);
 
 	/* Save the requested color. */
-	color->red = proposed->red;
-	color->green = proposed->green;
-	color->blue = proposed->blue;
+	if (proposed != NULL) {
+		_vte_debug_print(VTE_DEBUG_MISC,
+				"Set %s color[%d] to (%04x,%04x,%04x).\n",
+				source == VTE_COLOR_SOURCE_ESCAPE ? "escape" : "API",
+				entry, proposed->red, proposed->green, proposed->blue);
+
+		if (palette_color->sources[source].is_set &&
+		    palette_color->sources[source].color.red == proposed->red &&
+		    palette_color->sources[source].color.green == proposed->green &&
+		    palette_color->sources[source].color.blue == proposed->blue) {
+			return;
+		}
+		palette_color->sources[source].is_set = TRUE;
+		palette_color->sources[source].color.red = proposed->red;
+		palette_color->sources[source].color.green = proposed->green;
+		palette_color->sources[source].color.blue = proposed->blue;
+	} else {
+		_vte_debug_print(VTE_DEBUG_MISC,
+				"Reset %s color[%d].\n",
+				source == VTE_COLOR_SOURCE_ESCAPE ? "escape" : "API",
+				entry);
+
+		if (!palette_color->sources[source].is_set) {
+			return;
+		}
+		palette_color->sources[source].is_set = FALSE;
+	}
 
 	/* If we're not realized yet, there's nothing else to do. */
 	if (! gtk_widget_get_realized (&terminal->widget)) {
@@ -2530,12 +2542,12 @@ vte_terminal_set_color_internal(VteTerminal *terminal, int entry,
 
 	/* If we're setting the background color, set the background color
 	 * on the widget as well. */
-	if (entry == VTE_DEF_BG) {
+	if (entry == VTE_DEFAULT_BG) {
 		vte_terminal_queue_background_update(terminal);
 	}
 
 	/* and redraw */
-	if (entry == VTE_CUR_BG)
+	if (entry == VTE_CURSOR_BG)
 		_vte_invalidate_cursor_once(terminal, FALSE);
 	else
 		_vte_invalidate_all (terminal);
@@ -2604,7 +2616,7 @@ vte_terminal_set_color_bold(VteTerminal *terminal, const GdkColor *bold)
 	_vte_debug_print(VTE_DEBUG_MISC,
 			"Set bold color to (%04x,%04x,%04x).\n",
 			bold->red, bold->green, bold->blue);
-	vte_terminal_set_color_internal(terminal, VTE_BOLD_FG, bold);
+	_vte_terminal_set_color_internal(terminal, VTE_BOLD_FG, VTE_COLOR_SOURCE_API, bold);
 }
 
 /**
@@ -2623,7 +2635,7 @@ vte_terminal_set_color_dim(VteTerminal *terminal, const GdkColor *dim)
 	_vte_debug_print(VTE_DEBUG_MISC,
 			"Set dim color to (%04x,%04x,%04x).\n",
 			dim->red, dim->green, dim->blue);
-	vte_terminal_set_color_internal(terminal, VTE_DIM_FG, dim);
+	_vte_terminal_set_color_internal(terminal, VTE_DIM_FG, VTE_COLOR_SOURCE_API, dim);
 }
 
 /**
@@ -2643,7 +2655,7 @@ vte_terminal_set_color_foreground(VteTerminal *terminal,
 	_vte_debug_print(VTE_DEBUG_MISC,
 			"Set foreground color to (%04x,%04x,%04x).\n",
 			foreground->red, foreground->green, foreground->blue);
-	vte_terminal_set_color_internal(terminal, VTE_DEF_FG, foreground);
+	_vte_terminal_set_color_internal(terminal, VTE_DEFAULT_FG, VTE_COLOR_SOURCE_API, foreground);
 }
 
 /**
@@ -2665,7 +2677,7 @@ vte_terminal_set_color_background(VteTerminal *terminal,
 	_vte_debug_print(VTE_DEBUG_MISC,
 			"Set background color to (%04x,%04x,%04x).\n",
 			background->red, background->green, background->blue);
-	vte_terminal_set_color_internal(terminal, VTE_DEF_BG, background);
+	_vte_terminal_set_color_internal(terminal, VTE_DEFAULT_BG, VTE_COLOR_SOURCE_API, background);
 }
 
 /**
@@ -2691,14 +2703,11 @@ vte_terminal_set_color_cursor(VteTerminal *terminal,
 				cursor_background->red,
 				cursor_background->green,
 				cursor_background->blue);
-		vte_terminal_set_color_internal(terminal, VTE_CUR_BG,
-						cursor_background);
-		terminal->pvt->cursor_color_set = TRUE;
 	} else {
 		_vte_debug_print(VTE_DEBUG_MISC,
-				"Cleared cursor color.\n");
-		terminal->pvt->cursor_color_set = FALSE;
+				"Reset cursor color.\n");
 	}
+	_vte_terminal_set_color_internal(terminal, VTE_CURSOR_BG, VTE_COLOR_SOURCE_API, cursor_background);
 }
 
 /**
@@ -2707,6 +2716,7 @@ vte_terminal_set_color_cursor(VteTerminal *terminal,
  * @highlight_background: (allow-none): the new color to use for highlighted text, or %NULL
  *
  * Sets the background color for text which is highlighted.  If %NULL,
+ * it is unset.  If neither highlight background nor highlight foreground are set,
  * highlighted text (which is usually highlighted because it is selected) will
  * be drawn with foreground and background colors reversed.
  *
@@ -2720,18 +2730,46 @@ vte_terminal_set_color_highlight(VteTerminal *terminal,
 
 	if (highlight_background != NULL) {
 		_vte_debug_print(VTE_DEBUG_MISC,
-				"Set highlight color to (%04x,%04x,%04x).\n",
+				"Set highlight background color to (%04x,%04x,%04x).\n",
 				highlight_background->red,
 				highlight_background->green,
 				highlight_background->blue);
-		vte_terminal_set_color_internal(terminal, VTE_DEF_HL,
-						highlight_background);
-		terminal->pvt->highlight_color_set = TRUE;
 	} else {
 		_vte_debug_print(VTE_DEBUG_MISC,
-				"Cleared highlight color.\n");
-		terminal->pvt->highlight_color_set = FALSE;
+				"Reset highlight background color.\n");
 	}
+	_vte_terminal_set_color_internal(terminal, VTE_HIGHLIGHT_BG, VTE_COLOR_SOURCE_API, highlight_background);
+}
+
+/**
+ * vte_terminal_set_color_highlight_foreground:
+ * @terminal: a #VteTerminal
+ * @highlight_foreground: (allow-none): the new color to use for highlighted text, or %NULL
+ *
+ * Sets the foreground color for text which is highlighted.  If %NULL,
+ * it is unset.  If neither highlight background nor highlight foreground are set,
+ * highlighted text (which is usually highlighted because it is selected) will
+ * be drawn with foreground and background colors reversed.
+ *
+ * Since: 0.36
+ */
+void
+vte_terminal_set_color_highlight_foreground(VteTerminal *terminal,
+					    const GdkColor *highlight_foreground)
+{
+	g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+	if (highlight_foreground != NULL) {
+		_vte_debug_print(VTE_DEBUG_MISC,
+				"Set highlight foreground color to (%04x,%04x,%04x).\n",
+				highlight_foreground->red,
+				highlight_foreground->green,
+				highlight_foreground->blue);
+	} else {
+		_vte_debug_print(VTE_DEBUG_MISC,
+				"Reset highlight foreground color.\n");
+	}
+	_vte_terminal_set_color_internal(terminal, VTE_HIGHLIGHT_FG, VTE_COLOR_SOURCE_API, highlight_foreground);
 }
 
 /**
@@ -2747,7 +2785,7 @@ vte_terminal_set_color_highlight(VteTerminal *terminal,
  * color, an eight color palette, bold versions of the eight color palette,
  * and a dim version of the the eight color palette.
  *
- * @palette_size must be either 0, 8, 16, or 24, or between 25 and 255 inclusive.
+ * @palette_size must be either 0, 8, 16, or 24, or between 25 and 256 inclusive.
  * If @foreground is %NULL and
  * @palette_size is greater than 0, the new foreground color is taken from
  * @palette[7].  If @background is %NULL and @palette_size is greater than 0,
@@ -2765,6 +2803,7 @@ vte_terminal_set_colors(VteTerminal *terminal,
 {
 	guint i;
 	GdkColor color;
+	gboolean unset = FALSE;
 
 	g_return_if_fail(VTE_IS_TERMINAL(terminal));
 
@@ -2773,7 +2812,7 @@ vte_terminal_set_colors(VteTerminal *terminal,
 			 (palette_size == 8) ||
 			 (palette_size == 16) ||
 			 (palette_size == 24) ||
-			 (palette_size > 24 && palette_size < 256));
+			 (palette_size > 24 && palette_size <= 256));
 
 	_vte_debug_print(VTE_DEBUG_MISC,
 			"Set color palette [%ld elements].\n",
@@ -2793,6 +2832,7 @@ vte_terminal_set_colors(VteTerminal *terminal,
 	/* Initialize each item in the palette if we got any entries to work
 	 * with. */
 	for (i=0; i < G_N_ELEMENTS(terminal->pvt->palette); i++) {
+		unset = FALSE;
 		if (i < 16) {
 			color.blue = (i & 4) ? 0xc000 : 0;
 			color.green = (i & 2) ? 0xc000 : 0;
@@ -2817,7 +2857,7 @@ vte_terminal_set_colors(VteTerminal *terminal,
 			color.red = color.green = color.blue = shade | shade << 8;
 		}
 		else switch (i) {
-			case VTE_DEF_BG:
+			case VTE_DEFAULT_BG:
 				if (background != NULL) {
 					color = *background;
 				} else {
@@ -2826,7 +2866,7 @@ vte_terminal_set_colors(VteTerminal *terminal,
 					color.green = 0;
 				}
 				break;
-			case VTE_DEF_FG:
+			case VTE_DEFAULT_FG:
 				if (foreground != NULL) {
 					color = *foreground;
 				} else {
@@ -2836,26 +2876,25 @@ vte_terminal_set_colors(VteTerminal *terminal,
 				}
 				break;
 			case VTE_BOLD_FG:
-				vte_terminal_generate_bold(&terminal->pvt->palette[VTE_DEF_FG],
-							   &terminal->pvt->palette[VTE_DEF_BG],
+				vte_terminal_generate_bold(_vte_terminal_get_color(terminal, VTE_DEFAULT_FG),
+							   _vte_terminal_get_color(terminal, VTE_DEFAULT_BG),
 							   1.8,
 							   &color);
 				break;
 			case VTE_DIM_FG:
-				vte_terminal_generate_bold(&terminal->pvt->palette[VTE_DEF_FG],
-							   &terminal->pvt->palette[VTE_DEF_BG],
+				vte_terminal_generate_bold(_vte_terminal_get_color(terminal, VTE_DEFAULT_FG),
+							   _vte_terminal_get_color(terminal, VTE_DEFAULT_BG),
 							   0.5,
 							   &color);
 				break;
-			case VTE_DEF_HL:
-				color.red = 0xc000;
-				color.blue = 0xc000;
-				color.green = 0xc000;
+			case VTE_HIGHLIGHT_BG:
+				unset = TRUE;
 				break;
-			case VTE_CUR_BG:
-				color.red = 0x0000;
-				color.blue = 0x0000;
-				color.green = 0x0000;
+			case VTE_HIGHLIGHT_FG:
+				unset = TRUE;
+				break;
+			case VTE_CURSOR_BG:
+				unset = TRUE;
 				break;
 			}
 
@@ -2865,14 +2904,9 @@ vte_terminal_set_colors(VteTerminal *terminal,
 		}
 
 		/* Set up the color entry. */
-		vte_terminal_set_color_internal(terminal, i, &color);
+		_vte_terminal_set_color_internal(terminal, i, VTE_COLOR_SOURCE_API, unset ? NULL : &color);
 	}
-
-	/* Track that we had a color palette set. */
-	terminal->pvt->palette_initialized = TRUE;
 }
-
-#if GTK_CHECK_VERSION (2, 99, 0)
 
 static GdkColor *
 gdk_color_from_rgba (GdkColor *color,
@@ -2905,8 +2939,8 @@ vte_terminal_set_color_bold_rgba(VteTerminal *terminal,
 
 	if (bold == NULL)
 	{
-		vte_terminal_generate_bold(&terminal->pvt->palette[VTE_DEF_FG],
-					   &terminal->pvt->palette[VTE_DEF_BG],
+		vte_terminal_generate_bold(_vte_terminal_get_color(terminal, VTE_DEFAULT_FG),
+					   _vte_terminal_get_color(terminal, VTE_DEFAULT_BG),
 					   1.8,
 					   &color);
 	}
@@ -2936,8 +2970,8 @@ vte_terminal_set_color_dim_rgba(VteTerminal *terminal,
 
 	if (dim == NULL)
 	{
-		vte_terminal_generate_bold(&terminal->pvt->palette[VTE_DEF_FG],
-					   &terminal->pvt->palette[VTE_DEF_BG],
+		vte_terminal_generate_bold(_vte_terminal_get_color(terminal, VTE_DEFAULT_FG),
+					   _vte_terminal_get_color(terminal, VTE_DEFAULT_BG),
 					   0.5,
 					   &color);
 	}
@@ -3016,6 +3050,7 @@ vte_terminal_set_color_cursor_rgba(VteTerminal *terminal,
  * @highlight_background: (allow-none): the new color to use for highlighted text, or %NULL
  *
  * Sets the background color for text which is highlighted.  If %NULL,
+ * it is unset.  If neither highlight background nor highlight foreground are set,
  * highlighted text (which is usually highlighted because it is selected) will
  * be drawn with foreground and background colors reversed.
  *
@@ -3032,6 +3067,28 @@ vte_terminal_set_color_highlight_rgba(VteTerminal *terminal,
 }
 
 /**
+ * vte_terminal_set_color_highlight_foreground_rgba:
+ * @terminal: a #VteTerminal
+ * @highlight_foreground: (allow-none): the new color to use for highlighted text, or %NULL
+ *
+ * Sets the foreground color for text which is highlighted.  If %NULL,
+ * it is unset.  If neither highlight background nor highlight foreground are set,
+ * highlighted text (which is usually highlighted because it is selected) will
+ * be drawn with foreground and background colors reversed.
+ *
+ * Since: 0.36
+ */
+void
+vte_terminal_set_color_highlight_foreground_rgba(VteTerminal *terminal,
+						 const GdkRGBA *highlight_foreground)
+{
+	GdkColor color;
+
+	vte_terminal_set_color_highlight_foreground(terminal,
+                                                    gdk_color_from_rgba(&color, highlight_foreground));
+}
+
+/**
  * vte_terminal_set_colors_rgba:
  * @terminal: a #VteTerminal
  * @foreground: (allow-none): the new foreground color, or %NULL
@@ -3044,7 +3101,7 @@ vte_terminal_set_color_highlight_rgba(VteTerminal *terminal,
  * color, an eight color palette, bold versions of the eight color palette,
  * and a dim version of the the eight color palette.
  *
- * @palette_size must be either 0, 8, 16, or 24, or between 25 and 255 inclusive.
+ * @palette_size must be either 0, 8, 16, or 24, or between 25 and 256 inclusive.
  * If @foreground is %NULL and
  * @palette_size is greater than 0, the new foreground color is taken from
  * @palette[7].  If @background is %NULL and @palette_size is greater than 0,
@@ -3065,6 +3122,8 @@ vte_terminal_set_colors_rgba(VteTerminal *terminal,
 	GdkColor fg, bg, *pal;
 	gsize i;
 
+	g_return_if_fail(palette_size <= 256);
+
 	pal = g_new (GdkColor, palette_size);
 	for (i = 0; i < palette_size; ++i)
                 gdk_color_from_rgba(&pal[i], &palette[i]);
@@ -3077,8 +3136,6 @@ vte_terminal_set_colors_rgba(VteTerminal *terminal,
 	g_free (pal);
 }
 
-#endif /* GTK 3.0 */
-
 /**
  * vte_terminal_set_opacity:
  * @terminal: a #VteTerminal
@@ -3086,6 +3143,8 @@ vte_terminal_set_colors_rgba(VteTerminal *terminal,
  *
  * Sets the opacity of the terminal background, were 0 means completely
  * transparent and 65535 means completely opaque.
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_opacity(VteTerminal *terminal, guint16 opacity)
@@ -3100,6 +3159,7 @@ vte_terminal_set_opacity(VteTerminal *terminal, guint16 opacity)
                 return;
 
 	pvt->bg_opacity = opacity;
+	vte_terminal_queue_background_update(terminal);
 
         g_object_notify(G_OBJECT(terminal), "background-opacity");
 }
@@ -3166,20 +3226,12 @@ _vte_terminal_cursor_down (VteTerminal *terminal)
 		end = start + terminal->row_count - 1;
 	}
 	if (screen->cursor_current.row == end) {
-		/* Match xterm and fill to the end of row when scrolling. */
-		if (screen->fill_defaults.attr.back != VTE_DEF_BG) {
-			VteRowData *rowdata;
-			rowdata = _vte_terminal_ensure_row (terminal);
-			_vte_row_data_fill (rowdata, &screen->fill_defaults, terminal->column_count);
-		}
-
 		if (screen->scrolling_restricted) {
 			if (start == screen->insert_delta) {
 				/* Scroll this line into the scrollback
 				 * buffer by inserting a line at the next
 				 * line and scrolling the area up. */
 				screen->insert_delta++;
-				screen->scroll_delta++;
 				screen->cursor_current.row++;
 				/* update start and end, as they are relative
 				 * to insert_delta. */
@@ -3212,7 +3264,7 @@ _vte_terminal_cursor_down (VteTerminal *terminal)
 		}
 
 		/* Match xterm and fill the new row when scrolling. */
-		if (screen->fill_defaults.attr.back != VTE_DEF_BG) {
+		if (screen->fill_defaults.attr.back != VTE_DEFAULT_BG) {
 			VteRowData *rowdata;
 			rowdata = _vte_terminal_ensure_row (terminal);
 			_vte_row_data_fill (rowdata, &screen->fill_defaults, terminal->column_count);
@@ -3289,8 +3341,8 @@ _vte_terminal_insert_char(VteTerminal *terminal, gunichar c,
 	_vte_debug_print(VTE_DEBUG_PARSE,
 			"Inserting %ld '%c' (%d/%d) (%ld+%d, %ld), delta = %ld; ",
 			(long)c, c < 256 ? c : ' ',
-			screen->defaults.attr.fore,
-			screen->defaults.attr.back,
+			screen->color_defaults.attr.fore,
+			screen->color_defaults.attr.back,
 			col, columns, (long)screen->cursor_current.row,
 			(long)screen->insert_delta);
 
@@ -3395,6 +3447,8 @@ _vte_terminal_insert_char(VteTerminal *terminal, gunichar c,
 	}
 
 	attr = screen->defaults.attr;
+	attr.fore = screen->color_defaults.attr.fore;
+	attr.back = screen->color_defaults.attr.back;
 	attr.columns = columns;
 
 	if (G_UNLIKELY (c == '_' && terminal->pvt->flags.ul)) {
@@ -3606,12 +3660,9 @@ vte_terminal_pty_new(VteTerminal *terminal,
                      VtePtyFlags flags,
                      GError **error)
 {
-        VteTerminalPrivate *pvt;
         VtePty *pty;
 
         g_return_val_if_fail(VTE_IS_TERMINAL(terminal), NULL);
-
-        pvt = terminal->pvt;
 
         pty = vte_pty_new(flags, error);
         if (pty == NULL)
@@ -4074,6 +4125,7 @@ vte_terminal_process_incoming(VteTerminal *terminal)
 	long wcount, start, delta;
 	gboolean leftovers, modified, bottom, again;
 	gboolean invalidated_text;
+	gboolean in_scroll_region;
 	GArray *unichars;
 	struct _vte_incoming_chunk *chunk, *next_chunk, *achunk = NULL;
 
@@ -4092,6 +4144,10 @@ vte_terminal_process_incoming(VteTerminal *terminal)
 	/* Save the current cursor position. */
 	cursor = screen->cursor_current;
 	cursor_visible = terminal->pvt->cursor_visible;
+
+	in_scroll_region = screen->scrolling_restricted
+	    && (screen->cursor_current.row >= (screen->insert_delta + screen->scrolling_region.start))
+	    && (screen->cursor_current.row <= (screen->insert_delta + screen->scrolling_region.end));
 
 	/* We should only be called when there's data to process. */
 	g_assert(terminal->pvt->incoming ||
@@ -4191,6 +4247,8 @@ skip_chunk:
 		 * points to the first character which isn't part of this
 		 * sequence. */
 		if ((match != NULL) && (match[0] != '\0')) {
+			gboolean new_in_scroll_region;
+
 			/* Call the right sequence handler for the requested
 			 * behavior. */
 			_vte_terminal_handle_sequence(terminal,
@@ -4201,12 +4259,21 @@ skip_chunk:
 			start = (next - wbuf);
 			modified = TRUE;
 
-			/* if we have moved during the sequence handler, restart the bbox */
+			new_in_scroll_region = screen->scrolling_restricted
+			    && (screen->cursor_current.row >= (screen->insert_delta + screen->scrolling_region.start))
+			    && (screen->cursor_current.row <= (screen->insert_delta + screen->scrolling_region.end));
+
+			delta = screen->scroll_delta;	/* delta may have changed from sequence. */
+
+			/* if we have moved greatly during the sequence handler, or moved
+                         * into a scroll_region from outside it, restart the bbox.
+                         */
 			if (invalidated_text &&
-					(screen->cursor_current.col > bbox_bottomright.x + VTE_CELL_BBOX_SLACK ||
-					 screen->cursor_current.col < bbox_topleft.x - VTE_CELL_BBOX_SLACK     ||
-					 screen->cursor_current.row > bbox_bottomright.y + VTE_CELL_BBOX_SLACK ||
-					 screen->cursor_current.row < bbox_topleft.y - VTE_CELL_BBOX_SLACK)) {
+					((new_in_scroll_region && !in_scroll_region) ||
+					 (screen->cursor_current.col > bbox_bottomright.x + VTE_CELL_BBOX_SLACK ||
+					  screen->cursor_current.col < bbox_topleft.x - VTE_CELL_BBOX_SLACK     ||
+					  screen->cursor_current.row > bbox_bottomright.y + VTE_CELL_BBOX_SLACK ||
+					  screen->cursor_current.row < bbox_topleft.y - VTE_CELL_BBOX_SLACK))) {
 				/* Clip off any part of the box which isn't already on-screen. */
 				bbox_topleft.x = MAX(bbox_topleft.x, 0);
 				bbox_topleft.y = MAX(bbox_topleft.y, delta);
@@ -4226,6 +4293,8 @@ skip_chunk:
 				bbox_bottomright.x = bbox_bottomright.y = -G_MAXINT;
 				bbox_topleft.x = bbox_topleft.y = G_MAXINT;
 			}
+
+			in_scroll_region = new_in_scroll_region;
 		} else
 		/* Second, we have a NULL match, and next points to the very
 		 * next character in the buffer.  Insert the character which
@@ -4537,7 +4606,7 @@ vte_terminal_io_read(GIOChannel *channel,
 		if (max_bytes) {
 			max_bytes = terminal->pvt->max_input_bytes / max_bytes;
 		} else {
-			max_bytes = VTE_MAX_INPUT_READ;
+			max_bytes = terminal->pvt->max_input_bytes;
 		}
 		bytes = terminal->pvt->input_bytes;
 
@@ -5132,11 +5201,7 @@ vte_translate_ctrlkey (GdkEventKey *event)
 	if (event->keyval < 128)
 		return event->keyval;
 
-#if GTK_CHECK_VERSION (2, 90, 8)
         keymap = gdk_keymap_get_for_display(gdk_window_get_display (event->window));
-#else
-	keymap = gdk_keymap_get_for_display(gdk_drawable_get_display (event->window));
-#endif
 
 	/* Try groups in order to find one mapping the key to ASCII */
 	for (i = 0; i < 4; i++) {
@@ -5231,7 +5296,10 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 		if (terminal->pvt->cursor_blink_tag != 0)
 		{
 			remove_cursor_timeout (terminal);
-			terminal->pvt->cursor_blink_state = TRUE;
+                        if (terminal->pvt->cursor_blink_state == FALSE) {
+                                _vte_invalidate_cursor_once(terminal, FALSE);
+                                terminal->pvt->cursor_blink_state = TRUE;
+                        }
 			add_cursor_timeout (terminal);
 		}
 
@@ -5252,11 +5320,11 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 		/* We steal many keypad keys here. */
 		if (!terminal->pvt->im_preedit_active) {
 			switch (keyval) {
-			case GDK_KEY (KP_Add):
-			case GDK_KEY (KP_Subtract):
-			case GDK_KEY (KP_Multiply):
-			case GDK_KEY (KP_Divide):
-			case GDK_KEY (KP_Enter):
+			case GDK_KEY_KP_Add:
+			case GDK_KEY_KP_Subtract:
+			case GDK_KEY_KP_Multiply:
+			case GDK_KEY_KP_Divide:
+			case GDK_KEY_KP_Enter:
 				steal = TRUE;
 				break;
 			default:
@@ -5266,27 +5334,27 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 				steal = TRUE;
 			}
 			switch (keyval) {
-			case GDK_KEY (Multi_key):
-			case GDK_KEY (Codeinput):
-			case GDK_KEY (SingleCandidate):
-			case GDK_KEY (MultipleCandidate):
-			case GDK_KEY (PreviousCandidate):
-			case GDK_KEY (Kanji):
-			case GDK_KEY (Muhenkan):
-			case GDK_KEY (Henkan):
-			case GDK_KEY (Romaji):
-			case GDK_KEY (Hiragana):
-			case GDK_KEY (Katakana):
-			case GDK_KEY (Hiragana_Katakana):
-			case GDK_KEY (Zenkaku):
-			case GDK_KEY (Hankaku):
-			case GDK_KEY (Zenkaku_Hankaku):
-			case GDK_KEY (Touroku):
-			case GDK_KEY (Massyo):
-			case GDK_KEY (Kana_Lock):
-			case GDK_KEY (Kana_Shift):
-			case GDK_KEY (Eisu_Shift):
-			case GDK_KEY (Eisu_toggle):
+			case GDK_KEY_Multi_key:
+			case GDK_KEY_Codeinput:
+			case GDK_KEY_SingleCandidate:
+			case GDK_KEY_MultipleCandidate:
+			case GDK_KEY_PreviousCandidate:
+			case GDK_KEY_Kanji:
+			case GDK_KEY_Muhenkan:
+			case GDK_KEY_Henkan:
+			case GDK_KEY_Romaji:
+			case GDK_KEY_Hiragana:
+			case GDK_KEY_Katakana:
+			case GDK_KEY_Hiragana_Katakana:
+			case GDK_KEY_Zenkaku:
+			case GDK_KEY_Hankaku:
+			case GDK_KEY_Zenkaku_Hankaku:
+			case GDK_KEY_Touroku:
+			case GDK_KEY_Massyo:
+			case GDK_KEY_Kana_Lock:
+			case GDK_KEY_Kana_Shift:
+			case GDK_KEY_Eisu_Shift:
+			case GDK_KEY_Eisu_toggle:
 				steal = FALSE;
 				break;
 			default:
@@ -5312,7 +5380,7 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 		handled = FALSE;
 		/* Map the key to a sequence name if we can. */
 		switch (keyval) {
-		case GDK_KEY (BackSpace):
+		case GDK_KEY_BackSpace:
 			switch (terminal->pvt->backspace_binding) {
 			case VTE_ERASE_ASCII_BACKSPACE:
 				normal = g_strdup("");
@@ -5360,8 +5428,8 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 			}
 			handled = TRUE;
 			break;
-		case GDK_KEY (KP_Delete):
-		case GDK_KEY (Delete):
+		case GDK_KEY_KP_Delete:
+		case GDK_KEY_Delete:
 			switch (terminal->pvt->delete_binding) {
 			case VTE_ERASE_ASCII_BACKSPACE:
 				normal = g_strdup("\010");
@@ -5389,8 +5457,8 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 			handled = TRUE;
 			suppress_meta_esc = TRUE;
 			break;
-		case GDK_KEY (KP_Insert):
-		case GDK_KEY (Insert):
+		case GDK_KEY_KP_Insert:
+		case GDK_KEY_Insert:
 			if (modifiers & GDK_SHIFT_MASK) {
 				if (modifiers & GDK_CONTROL_MASK) {
 					vte_terminal_paste_clipboard(terminal);
@@ -5408,9 +5476,10 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 			}
 			break;
 		/* Keypad/motion keys. */
-		case GDK_KEY (KP_Up):
-		case GDK_KEY (Up):
-			if (modifiers & GDK_CONTROL_MASK 
+		case GDK_KEY_KP_Up:
+		case GDK_KEY_Up:
+			if (terminal->pvt->screen == &terminal->pvt->normal_screen
+			    && modifiers & GDK_CONTROL_MASK 
                             && modifiers & GDK_SHIFT_MASK) {
 				vte_terminal_scroll_lines(terminal, -1);
 				scrolled = TRUE;
@@ -5418,9 +5487,10 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 				suppress_meta_esc = TRUE;
 			}
 			break;
-		case GDK_KEY (KP_Down):
-		case GDK_KEY (Down):
-			if (modifiers & GDK_CONTROL_MASK
+		case GDK_KEY_KP_Down:
+		case GDK_KEY_Down:
+			if (terminal->pvt->screen == &terminal->pvt->normal_screen
+			    && modifiers & GDK_CONTROL_MASK
                             && modifiers & GDK_SHIFT_MASK) {
 				vte_terminal_scroll_lines(terminal, 1);
 				scrolled = TRUE;
@@ -5428,52 +5498,56 @@ vte_terminal_key_press(GtkWidget *widget, GdkEventKey *event)
 				suppress_meta_esc = TRUE;
 			}
 			break;
-		case GDK_KEY (KP_Page_Up):
-		case GDK_KEY (Page_Up):
-			if (modifiers & GDK_SHIFT_MASK) {
+		case GDK_KEY_KP_Page_Up:
+		case GDK_KEY_Page_Up:
+			if (terminal->pvt->screen == &terminal->pvt->normal_screen
+			    && modifiers & GDK_SHIFT_MASK) {
 				vte_terminal_scroll_pages(terminal, -1);
 				scrolled = TRUE;
 				handled = TRUE;
 				suppress_meta_esc = TRUE;
 			}
 			break;
-		case GDK_KEY (KP_Page_Down):
-		case GDK_KEY (Page_Down):
-			if (modifiers & GDK_SHIFT_MASK) {
+		case GDK_KEY_KP_Page_Down:
+		case GDK_KEY_Page_Down:
+			if (terminal->pvt->screen == &terminal->pvt->normal_screen
+			    && modifiers & GDK_SHIFT_MASK) {
 				vte_terminal_scroll_pages(terminal, 1);
 				scrolled = TRUE;
 				handled = TRUE;
 				suppress_meta_esc = TRUE;
 			}
 			break;
-		case GDK_KEY (KP_Home):
-		case GDK_KEY (Home):
-			if (modifiers & GDK_SHIFT_MASK) {
+		case GDK_KEY_KP_Home:
+		case GDK_KEY_Home:
+			if (terminal->pvt->screen == &terminal->pvt->normal_screen
+			    && modifiers & GDK_SHIFT_MASK) {
 				vte_terminal_maybe_scroll_to_top(terminal);
 				scrolled = TRUE;
 				handled = TRUE;
 			}
 			break;
-		case GDK_KEY (KP_End):
-		case GDK_KEY (End):
-			if (modifiers & GDK_SHIFT_MASK) {
+		case GDK_KEY_KP_End:
+		case GDK_KEY_End:
+			if (terminal->pvt->screen == &terminal->pvt->normal_screen
+			    && modifiers & GDK_SHIFT_MASK) {
 				vte_terminal_maybe_scroll_to_bottom(terminal);
 				scrolled = TRUE;
 				handled = TRUE;
 			}
 			break;
 		/* Let Shift +/- tweak the font, like XTerm does. */
-		case GDK_KEY (KP_Add):
-		case GDK_KEY (KP_Subtract):
+		case GDK_KEY_KP_Add:
+		case GDK_KEY_KP_Subtract:
 			if (modifiers &
 			    (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) {
 				switch (keyval) {
-				case GDK_KEY (KP_Add):
+				case GDK_KEY_KP_Add:
 					vte_terminal_emit_increase_font_size(terminal);
 					handled = TRUE;
 					suppress_meta_esc = TRUE;
 					break;
-				case GDK_KEY (KP_Subtract):
+				case GDK_KEY_KP_Subtract:
 					vte_terminal_emit_decrease_font_size(terminal);
 					handled = TRUE;
 					suppress_meta_esc = TRUE;
@@ -5808,10 +5882,10 @@ vte_terminal_paste_cb(GtkClipboard *clipboard, const gchar *text, gpointer data)
 				p++;
 			}
 		}
-		if (terminal->pvt->screen->bracketed_paste_mode)
+		if (terminal->pvt->bracketed_paste_mode)
 			vte_terminal_feed_child(terminal, "\e[200~", -1);
 		vte_terminal_feed_child(terminal, paste, length);
-		if (terminal->pvt->screen->bracketed_paste_mode)
+		if (terminal->pvt->bracketed_paste_mode)
 			vte_terminal_feed_child(terminal, "\e[201~", -1);
 		g_free(paste);
 	}
@@ -5908,8 +5982,17 @@ vte_terminal_send_mouse_button_internal(VteTerminal *terminal,
 	vte_terminal_feed_mouse_event(terminal, button, FALSE /* not drag */, is_release, col, row);
 }
 
-/* Send a mouse button click/release notification. */
-static void
+/*
+ * vte_terminal_maybe_send_mouse_button:
+ * @terminal:
+ * @event:
+ *
+ * Sends a mouse button click or release notification to the application,
+ * if the terminal is in mouse tracking mode.
+ *
+ * Returns: %TRUE iff the event was consumed
+ */
+static gboolean
 vte_terminal_maybe_send_mouse_button(VteTerminal *terminal,
 				     GdkEventButton *event)
 {
@@ -5918,17 +6001,17 @@ vte_terminal_maybe_send_mouse_button(VteTerminal *terminal,
 	switch (event->type) {
 	case GDK_BUTTON_PRESS:
 		if (terminal->pvt->mouse_tracking_mode < MOUSE_TRACKING_SEND_XY_ON_CLICK) {
-			return;
+			return FALSE;
 		}
 		break;
 	case GDK_BUTTON_RELEASE: {
 		if (terminal->pvt->mouse_tracking_mode < MOUSE_TRACKING_SEND_XY_ON_BUTTON) {
-			return;
+			return FALSE;
 		}
 		break;
 	}
 	default:
-		return;
+		return FALSE;
 		break;
 	}
 
@@ -5936,10 +6019,20 @@ vte_terminal_maybe_send_mouse_button(VteTerminal *terminal,
 						event->button,
 						event->type == GDK_BUTTON_RELEASE,
 						event->x, event->y);
+	return TRUE;
 }
 
-/* Send a mouse motion notification. */
-static void
+/*
+ * vte_terminal_maybe_send_mouse_drag:
+ * @terminal:
+ * @event:
+ *
+ * Sends a mouse motion notification to the application,
+ * if the terminal is in mouse tracking mode.
+ *
+ * Returns: %TRUE iff the event was consumed
+ */
+static gboolean
 vte_terminal_maybe_send_mouse_drag(VteTerminal *terminal, GdkEventMotion *event)
 {
 	int width = terminal->char_width;
@@ -5951,28 +6044,29 @@ vte_terminal_maybe_send_mouse_drag(VteTerminal *terminal, GdkEventMotion *event)
 	switch (event->type) {
 	case GDK_MOTION_NOTIFY:
 		if (terminal->pvt->mouse_tracking_mode < MOUSE_TRACKING_CELL_MOTION_TRACKING)
-			return;
+			return FALSE;
 
 		if (terminal->pvt->mouse_tracking_mode < MOUSE_TRACKING_ALL_MOTION_TRACKING) {
 
 			if (terminal->pvt->mouse_last_button == 0) {
-				return;
+				return FALSE;
 			}
 			/* the xterm doc is not clear as to whether
 			 * all-tracking also sends degenerate same-cell events */
 			if (col == terminal->pvt->mouse_last_x / width &&
 			    row == terminal->pvt->mouse_last_y / height)
-				return;
+				return FALSE;
 		}
 		break;
 	default:
-		return;
+		return FALSE;
 		break;
 	}
 
 	vte_terminal_feed_mouse_event(terminal, terminal->pvt->mouse_last_button,
 				      TRUE /* drag */, FALSE /* not release */,
 				      col, row);
+	return TRUE;
 }
 
 /* Clear all match hilites. */
@@ -6220,6 +6314,23 @@ vte_terminal_copy_cb(GtkClipboard *clipboard, GtkSelectionData *data,
 	}
 }
 
+/* Convert the internal color code (either index or RGB, see vte-private.h) into RGB. */
+static void
+vte_terminal_get_rgb_from_index(const VteTerminal *terminal, guint index, PangoColor *color)
+{
+	if (index >= VTE_LEGACY_COLORS_OFFSET && index < VTE_LEGACY_COLORS_OFFSET + VTE_LEGACY_FULL_COLOR_SET_SIZE)
+		index -= VTE_LEGACY_COLORS_OFFSET;
+	if (index < VTE_PALETTE_SIZE) {
+		memcpy(color, _vte_terminal_get_color(terminal, index), sizeof(PangoColor));
+	} else if (index & VTE_RGB_COLOR) {
+		color->red = ((index >> 16) & 0xFF) * 257;
+		color->green = ((index >> 8) & 0xFF) * 257;
+		color->blue = (index & 0xFF) * 257;
+	} else {
+		g_assert_not_reached();
+	}
+}
+
 /**
  * VteSelectionFunc:
  * @terminal: terminal in which the cell is.
@@ -6284,16 +6395,13 @@ vte_terminal_get_text_range_maybe_wrapped(VteTerminal *terminal,
 					  gboolean include_trailing_spaces)
 {
 	glong col, row, last_empty, last_emptycol, last_nonempty, last_nonemptycol;
-	VteScreen *screen;
 	const VteCell *pcell = NULL;
 	GString *string;
 	struct _VteCharAttributes attr;
-	PangoColor fore, back, *palette;
+	PangoColor fore, back;
 
 	if (!is_selected)
 		is_selected = always_selected;
-
-	screen = terminal->pvt->screen;
 
 	if (attributes)
 		g_array_set_size (attributes, 0);
@@ -6301,7 +6409,6 @@ vte_terminal_get_text_range_maybe_wrapped(VteTerminal *terminal,
 	string = g_string_new(NULL);
 	memset(&attr, 0, sizeof(attr));
 
-	palette = terminal->pvt->palette;
 	col = start_col;
 	for (row = start_row; row < end_row + 1; row++, col = 0) {
 		const VteRowData *row_data = _vte_terminal_find_row_data (terminal, row);
@@ -6321,8 +6428,8 @@ vte_terminal_get_text_range_maybe_wrapped(VteTerminal *terminal,
 				 * the selection. */
 				if (!pcell->attr.fragment && is_selected(terminal, col, row, data)) {
 					/* Store the attributes of this character. */
-					fore = palette[pcell->attr.fore];
-					back = palette[pcell->attr.back];
+					vte_terminal_get_rgb_from_index(terminal, pcell->attr.fore, &fore);
+					vte_terminal_get_rgb_from_index(terminal, pcell->attr.back, &back);
 					attr.fore.red = fore.red;
 					attr.fore.green = fore.green;
 					attr.fore.blue = fore.blue;
@@ -6603,10 +6710,35 @@ vte_terminal_invalidate_selection (VteTerminal *terminal)
 				terminal->pvt->selection_block_mode);
 }
 
+/* Confine coordinates into the visible area. Padding is alreday subtracted. */
+static void
+vte_terminal_confine_coordinates (VteTerminal *terminal, long *xp, long *yp)
+{
+	long x = *xp;
+	long y = *yp;
+
+	if (y < 0) {
+		y = 0;
+		if (!terminal->pvt->selection_block_mode)
+			x = 0;
+	} else if (y >= terminal->row_count * terminal->char_height) {
+		y = terminal->row_count * terminal->char_height - 1;
+		if (!terminal->pvt->selection_block_mode)
+			x = terminal->column_count * terminal->char_width - 1;
+	}
+	if (x < 0) {
+		x = 0;
+	} else if (x >= terminal->column_count * terminal->char_width) {
+		x = terminal->column_count * terminal->char_width - 1;
+	}
+
+	*xp = x;
+	*yp = y;
+}
 
 /* Start selection at the location of the event. */
 static void
-vte_terminal_start_selection(VteTerminal *terminal, gdouble x, gdouble y,
+vte_terminal_start_selection(VteTerminal *terminal, long x, long y,
 			     enum vte_selection_type selection_type)
 {
 	long delta;
@@ -6616,12 +6748,14 @@ vte_terminal_start_selection(VteTerminal *terminal, gdouble x, gdouble y,
 	if (terminal->pvt->selection_block_mode)
 		selection_type = selection_type_char;
 
+	/* Confine coordinates into the visible area. (#563024, #722635c7) */
+	vte_terminal_confine_coordinates(terminal, &x, &y);
+
 	/* Record that we have the selection, and where it started. */
 	delta = terminal->pvt->screen->scroll_delta;
 	terminal->pvt->has_selection = TRUE;
-	terminal->pvt->selection_last.x = x - terminal->pvt->inner_border.left;
-	terminal->pvt->selection_last.y = y - terminal->pvt->inner_border.top +
-					  (terminal->char_height * delta);
+	terminal->pvt->selection_last.x = x;
+	terminal->pvt->selection_last.y = y + (terminal->char_height * delta);
 
 	/* Decide whether or not to restart on the next drag. */
 	switch (selection_type) {
@@ -6749,17 +6883,18 @@ vte_terminal_extend_selection_expand (VteTerminal *terminal)
 				break;
 		}
 		/* If the end point is to its right, then extend the
-		 * endpoint as far right as we can expect. */
+		 * endpoint to the beginning of the next row. */
 		if (ec->col >= i) {
-			ec->col = MAX(ec->col,
-				    MAX(terminal->column_count,
-					(long) _vte_row_data_length (rowdata)));
+			ec->col = -1;
+			ec->row++;
 		}
 	} else {
-		/* Snap to the rightmost column, only if selecting anything of
-		 * this row. */
-		if (ec->col >= 0)
-			ec->col = MAX(ec->col, terminal->column_count);
+		/* Snap to the beginning of the next line, only if
+		 * selecting anything of this row. */
+		if (ec->col >= 0) {
+			ec->col = -1;
+			ec->row++;
+		}
 	}
 	ec->col = find_end_column (terminal, ec->col, ec->row);
 
@@ -6880,14 +7015,10 @@ vte_terminal_extend_selection_expand (VteTerminal *terminal)
 			j++;
 			ec->row = j;
 		}
-		/* Make sure we include all of the last line. */
-		ec->col = terminal->column_count;
-		if (_vte_ring_contains (screen->row_data, ec->row)) {
-			rowdata = _vte_ring_index(screen->row_data, ec->row);
-			if (rowdata != NULL) {
-				ec->col = MAX(ec->col, (long) _vte_row_data_length (rowdata));
-			}
-		}
+		/* Make sure we include all of the last line by extending
+		 * to the beginning of the next line. */
+		ec->row++;
+		ec->col = -1;
 		break;
 	}
 }
@@ -6908,19 +7039,8 @@ vte_terminal_extend_selection(VteTerminal *terminal, long x, long y,
 	height = terminal->char_height;
 	width = terminal->char_width;
 
-	/* Confine y into the visible area. (#563024) */
-	if (y < 0) {
-		y = 0;
-		if (!terminal->pvt->selection_block_mode)
-			x = 0;
-	} else if (y >= terminal->row_count * height) {
-		if (!terminal->pvt->selection_block_mode) {
-			y = terminal->row_count * height;
-			x = -1;
-		} else {
-			y = terminal->row_count * height - 1;
-		}
-	}
+	/* Confine coordinates into the visible area. (#563024, #722635c7) */
+	vte_terminal_confine_coordinates(terminal, &x, &y);
 
 	screen = terminal->pvt->screen;
 	old_start = terminal->pvt->selection_start;
@@ -7438,8 +7558,14 @@ vte_terminal_button_press(GtkWidget *widget, GdkEventButton *event)
 		case 2:
 			if ((terminal->pvt->modifiers & GDK_SHIFT_MASK) ||
 			    !terminal->pvt->mouse_tracking_mode) {
-				vte_terminal_paste_primary(terminal);
-				handled = TRUE;
+                                gboolean do_paste;
+
+                                g_object_get (gtk_widget_get_settings(widget),
+                                              "gtk-enable-primary-paste",
+                                              &do_paste, NULL);
+                                if (do_paste)
+                                        vte_terminal_paste_primary(terminal);
+				handled = do_paste;
 			}
 			break;
 		case 3:
@@ -7449,8 +7575,7 @@ vte_terminal_button_press(GtkWidget *widget, GdkEventButton *event)
 		/* If we haven't done anything yet, try sending the mouse
 		 * event to the app. */
 		if (handled == FALSE) {
-			vte_terminal_maybe_send_mouse_button(terminal, event);
-			handled = TRUE;
+			handled = vte_terminal_maybe_send_mouse_button(terminal, event);
 		}
 		break;
 	case GDK_2BUTTON_PRESS:
@@ -7464,6 +7589,7 @@ vte_terminal_button_press(GtkWidget *widget, GdkEventButton *event)
 				vte_terminal_start_selection(terminal,
 							     x, y,
 							     selection_type_char);
+				handled = TRUE;
 			}
 			if ((terminal->pvt->modifiers & GDK_SHIFT_MASK) ||
 			    !terminal->pvt->mouse_tracking_mode) {
@@ -7472,6 +7598,7 @@ vte_terminal_button_press(GtkWidget *widget, GdkEventButton *event)
 							     selection_type_word);
 				vte_terminal_extend_selection(terminal,
 							      x, y, FALSE, TRUE);
+				handled = TRUE;
 			}
 			break;
 		case 2:
@@ -7494,6 +7621,7 @@ vte_terminal_button_press(GtkWidget *widget, GdkEventButton *event)
 							     selection_type_line);
 				vte_terminal_extend_selection(terminal,
 							      x, y, FALSE, TRUE);
+				handled = TRUE;
 			}
 			break;
 		case 2:
@@ -7510,7 +7638,7 @@ vte_terminal_button_press(GtkWidget *widget, GdkEventButton *event)
 	terminal->pvt->mouse_last_x = x;
 	terminal->pvt->mouse_last_y = y;
 
-	return TRUE;
+	return handled;
 }
 
 /* Read and handle a pointing device buttonrelease event. */
@@ -7551,8 +7679,7 @@ vte_terminal_button_release(GtkWidget *widget, GdkEventButton *event)
 			break;
 		}
 		if (!handled) {
-			vte_terminal_maybe_send_mouse_button(terminal, event);
-			handled = TRUE;
+			handled = vte_terminal_maybe_send_mouse_button(terminal, event);
 		}
 		break;
 	default:
@@ -7565,7 +7692,7 @@ vte_terminal_button_release(GtkWidget *widget, GdkEventButton *event)
 	terminal->pvt->mouse_last_y = y;
 	terminal->pvt->selecting_after_threshold = FALSE;
 
-	return TRUE;
+	return handled;
 }
 
 /* Handle receiving or losing focus. */
@@ -7620,6 +7747,7 @@ vte_terminal_focus_out(GtkWidget *widget, GdkEventFocus *event)
 		vte_terminal_match_hilite_hide (terminal);
 		/* Mark the cursor as invisible to disable hilite updating */
 		terminal->pvt->mouse_cursor_visible = FALSE;
+		terminal->pvt->mouse_last_button = 0;
 	}
 
 	terminal->pvt->has_focus = FALSE;
@@ -8002,6 +8130,141 @@ vte_terminal_refresh_size(VteTerminal *terminal)
 	}
 }
 
+/* Resize the given screen (normal or alternate) of the terminal. */
+static void
+vte_terminal_screen_set_size(VteTerminal *terminal, VteScreen *screen, glong old_columns, glong old_rows, gboolean do_rewrap)
+{
+	VteRing *ring = screen->row_data;
+	VteVisualPosition cursor_saved_absolute;
+	VteVisualPosition below_viewport;
+	VteVisualPosition below_current_paragraph;
+	VteVisualPosition *markers[7];
+	gboolean was_scrolled_to_top = (screen->scroll_delta == _vte_ring_delta(ring));
+	gboolean was_scrolled_to_bottom = (screen->scroll_delta == screen->insert_delta);
+	glong old_top_lines;
+	glong new_scroll_delta;
+
+	_vte_debug_print(VTE_DEBUG_RESIZE,
+			"Resizing %s screen\n"
+			"Old  insert_delta=%ld  scroll_delta=%ld\n"
+			"     cursor_current (absolute)  row=%ld  (visual line %ld)  col=%ld\n"
+			"     cursor_saved (relative to insert_delta)  row=%ld  col=%ld\n",
+			screen == &terminal->pvt->normal_screen ? "normal" : "alternate",
+			screen->insert_delta, screen->scroll_delta,
+			screen->cursor_current.row, screen->cursor_current.row - screen->scroll_delta + 1, screen->cursor_current.col,
+			screen->cursor_saved.row, screen->cursor_saved.col);
+
+	screen->scrolling_restricted = FALSE;
+
+	cursor_saved_absolute.row = screen->cursor_saved.row + screen->insert_delta;
+	cursor_saved_absolute.col = screen->cursor_saved.col;
+	below_viewport.row = screen->scroll_delta + old_rows;
+	below_viewport.col = 0;
+	below_current_paragraph.row = screen->cursor_current.row + 1;
+	while (below_current_paragraph.row < _vte_ring_next(ring)
+	    && _vte_ring_index(ring, below_current_paragraph.row - 1)->attr.soft_wrapped) {
+		below_current_paragraph.row++;
+	}
+	below_current_paragraph.col = 0;
+	markers[0] = &screen->cursor_current;
+	markers[1] = &cursor_saved_absolute;
+	markers[2] = &below_viewport;
+	markers[3] = &below_current_paragraph;
+	if (screen == terminal->pvt->screen && terminal->pvt->has_selection) {
+		/* selection_end is inclusive, make it non-inclusive, see bug 722635. */
+		terminal->pvt->selection_end.col++;
+		markers[4] = &terminal->pvt->selection_start;
+		markers[5] = &terminal->pvt->selection_end;
+		markers[6] = NULL;
+	} else {
+		markers[4] = NULL;
+	}
+
+	old_top_lines = below_current_paragraph.row - screen->insert_delta;
+
+	if (do_rewrap && old_columns != terminal->column_count)
+		_vte_ring_rewrap(ring, terminal->column_count, markers);
+
+	if (_vte_ring_length(ring) > terminal->row_count) {
+		/* The content won't fit without scrollbars. Before figuring out the position, we might need to
+		   drop some lines from the ring if the cursor is not at the bottom, as XTerm does. See bug 708213.
+		   This code is really tricky, see ../doc/rewrap.txt for details! */
+		glong new_top_lines, drop1, drop2, drop3, drop;
+		screen->insert_delta = _vte_ring_next(ring) - terminal->row_count;
+		new_top_lines = below_current_paragraph.row - screen->insert_delta;
+		drop1 = _vte_ring_length(ring) - terminal->row_count;
+		drop2 = _vte_ring_next(ring) - below_current_paragraph.row;
+		drop3 = old_top_lines - new_top_lines;
+		drop = MIN(MIN(drop1, drop2), drop3);
+		if (drop > 0) {
+			int new_ring_next = screen->insert_delta + terminal->row_count - drop;
+			_vte_debug_print(VTE_DEBUG_RESIZE,
+					"Dropping %ld [== MIN(%ld, %ld, %ld)] rows at the bottom\n",
+					drop, drop1, drop2, drop3);
+			_vte_ring_shrink(ring, new_ring_next - _vte_ring_delta(ring));
+		}
+	}
+
+	if (screen == terminal->pvt->screen && terminal->pvt->has_selection) {
+		/* Make selection_end inclusive again, see above. */
+		terminal->pvt->selection_end.col--;
+	}
+
+	/* Figure out new insert and scroll deltas */
+	if (_vte_ring_length(ring) <= terminal->row_count) {
+		/* Everything fits without scrollbars. Align at top. */
+		screen->insert_delta = _vte_ring_delta(ring);
+		new_scroll_delta = screen->insert_delta;
+		_vte_debug_print(VTE_DEBUG_RESIZE,
+				"Everything fits without scrollbars\n");
+	} else {
+		/* Scrollbar required. Can't afford unused lines at bottom. */
+		screen->insert_delta = _vte_ring_next(ring) - terminal->row_count;
+		if (was_scrolled_to_bottom) {
+			/* Was scrolled to bottom, keep this way. */
+			new_scroll_delta = screen->insert_delta;
+			_vte_debug_print(VTE_DEBUG_RESIZE,
+					"Scroll to bottom\n");
+		} else if (was_scrolled_to_top) {
+			/* Was scrolled to top, keep this way. Not sure if this special case is worth it. */
+			new_scroll_delta = _vte_ring_delta(ring);
+			_vte_debug_print(VTE_DEBUG_RESIZE,
+					"Scroll to top\n");
+		} else {
+			/* Try to scroll so that the bottom visible row stays.
+			   More precisely, the character below the bottom left corner stays in that
+			   (invisible) row.
+			   So if the bottom of the screen was at a hard line break then that hard
+			   line break will stay there.
+			   TODO: What would be the best behavior if the bottom of the screen is a
+			   soft line break, i.e. only a partial line is visible at the bottom? */
+			new_scroll_delta = below_viewport.row - terminal->row_count;
+			_vte_debug_print(VTE_DEBUG_RESIZE,
+					"Scroll so bottom row stays\n");
+		}
+	}
+
+	/* Don't clamp, they'll be clamped when restored. Until then remember off-screen values
+	   since they might become on-screen again on subsequent resizes. */
+	screen->cursor_saved.row = cursor_saved_absolute.row - screen->insert_delta;
+	screen->cursor_saved.col = cursor_saved_absolute.col;
+
+	_vte_debug_print(VTE_DEBUG_RESIZE,
+			"New  insert_delta=%ld  scroll_delta=%ld\n"
+			"     cursor_current (absolute)  row=%ld  (visual line %ld)  col=%ld\n"
+			"     cursor_saved (relative to insert_delta)  row=%ld  col=%ld\n\n",
+			screen->insert_delta, new_scroll_delta,
+			screen->cursor_current.row, screen->cursor_current.row - new_scroll_delta + 1, screen->cursor_current.col,
+			screen->cursor_saved.row, screen->cursor_saved.col);
+
+	if (screen == terminal->pvt->screen)
+		vte_terminal_queue_adjustment_value_changed (
+				terminal,
+				new_scroll_delta);
+	else
+		screen->scroll_delta = new_scroll_delta;
+}
+
 /**
  * vte_terminal_set_size:
  * @terminal: a #VteTerminal
@@ -8014,11 +8277,12 @@ vte_terminal_refresh_size(VteTerminal *terminal)
 void
 vte_terminal_set_size(VteTerminal *terminal, glong columns, glong rows)
 {
+	VteScreen *screen;
 	glong old_columns, old_rows;
 
 	g_return_if_fail(VTE_IS_TERMINAL(terminal));
 
-	_vte_debug_print(VTE_DEBUG_MISC,
+	_vte_debug_print(VTE_DEBUG_RESIZE,
 			"Setting PTY size to %ldx%ld.\n",
 			columns, rows);
 
@@ -8041,15 +8305,31 @@ vte_terminal_set_size(VteTerminal *terminal, glong columns, glong rows)
 		terminal->column_count = columns;
 	}
 	if (old_rows != terminal->row_count || old_columns != terminal->column_count) {
-		VteScreen *screen = terminal->pvt->screen;
-		glong visible_rows = MIN (old_rows, _vte_ring_length (screen->row_data));
-		if (terminal->row_count < visible_rows) {
-			glong delta = visible_rows - terminal->row_count;
-			screen->insert_delta += delta;
-			vte_terminal_queue_adjustment_value_changed (
-					terminal,
-					screen->scroll_delta + delta);
-		}
+		_vte_ring_set_visible_rows_hint(terminal->pvt->normal_screen.row_data, terminal->row_count);
+		_vte_ring_set_visible_rows_hint(terminal->pvt->alternate_screen.row_data, terminal->row_count);
+
+		/* Always resize normal screen (given that this feature is enabled), even if alternate is visible: bug 415277 */
+		vte_terminal_screen_set_size(terminal, &terminal->pvt->normal_screen, old_columns, old_rows, terminal->pvt->rewrap_on_resize);
+		/* Resize the alternate screen if it's the current one, but never rewrap it: bug 336238 comment 60 */
+		if (terminal->pvt->screen == &terminal->pvt->alternate_screen)
+			vte_terminal_screen_set_size(terminal, &terminal->pvt->alternate_screen, old_columns, old_rows, FALSE);
+
+                /* Ensure scrollback buffers cover the screen. */
+                vte_terminal_set_scrollback_lines(terminal,
+                                                  terminal->pvt->scrollback_lines);
+                /* Ensure the cursor is valid */
+                screen = &terminal->pvt->normal_screen;
+                screen->cursor_current.row = CLAMP (screen->cursor_current.row,
+                                                    _vte_ring_delta (screen->row_data),
+                                                    MAX (_vte_ring_delta (screen->row_data),
+                                                         _vte_ring_next (screen->row_data) - 1));
+                screen = &terminal->pvt->alternate_screen;
+                screen->cursor_current.row = CLAMP (screen->cursor_current.row,
+                                                    _vte_ring_delta (screen->row_data),
+                                                    MAX (_vte_ring_delta (screen->row_data),
+                                                         _vte_ring_next (screen->row_data) - 1));
+
+		_vte_terminal_adjust_adjustments_full (terminal);
 		gtk_widget_queue_resize_no_redraw (&terminal->widget);
 		/* Our visible text changed. */
 		vte_terminal_emit_text_modified(terminal);
@@ -8088,7 +8368,6 @@ vte_terminal_handle_scroll(VteTerminal *terminal)
 	}
 }
 
-#if GTK_CHECK_VERSION (2, 91, 2)
 static void
 vte_terminal_set_hadjustment(VteTerminal *terminal,
                              GtkAdjustment *adjustment)
@@ -8103,7 +8382,6 @@ vte_terminal_set_hadjustment(VteTerminal *terminal,
 
   pvt->hadjustment = adjustment ? g_object_ref_sink (adjustment) : NULL;
 }
-#endif
 
 static void
 vte_terminal_set_vadjustment(VteTerminal *terminal,
@@ -8140,17 +8418,6 @@ vte_terminal_set_vadjustment(VteTerminal *terminal,
 				 terminal);
 }
 
-/* Set the adjustment objects used by the terminal widget. */
-#if !GTK_CHECK_VERSION (2, 91, 2)
-static void
-vte_terminal_set_scroll_adjustments(GtkWidget *widget,
-                                   GtkAdjustment *hadjustment G_GNUC_UNUSED,
-                                   GtkAdjustment *vadjustment)
-{
-        vte_terminal_set_vadjustment(VTE_TERMINAL(widget), vadjustment);
-}
-#endif /* GTK 2.x */
-
 /**
  * vte_terminal_set_emulation:
  * @terminal: a #VteTerminal
@@ -8163,14 +8430,12 @@ vte_terminal_set_scroll_adjustments(GtkWidget *widget,
 void
 vte_terminal_set_emulation(VteTerminal *terminal, const char *emulation)
 {
-        VteTerminalPrivate *pvt;
         GObject *object;
 	int columns, rows;
 
 	g_return_if_fail(VTE_IS_TERMINAL(terminal));
 
         object = G_OBJECT(terminal);
-        pvt = terminal->pvt;
 
         g_object_freeze_notify(object);
 
@@ -8325,6 +8590,8 @@ static void
 vte_terminal_init(VteTerminal *terminal)
 {
 	VteTerminalPrivate *pvt;
+	GtkStyleContext *context;
+	int i;
 
 	_vte_debug_print(VTE_DEBUG_LIFECYCLE, "vte_terminal_init()\n");
 
@@ -8340,17 +8607,13 @@ vte_terminal_init(VteTerminal *terminal)
 
 	/* Set an adjustment for the application to use to control scrolling. */
         terminal->adjustment = NULL;
-#if GTK_CHECK_VERSION (2, 91, 2)
         pvt->hadjustment = NULL;
         /* GtkScrollable */
         pvt->hscroll_policy = GTK_SCROLL_NATURAL;
         pvt->vscroll_policy = GTK_SCROLL_NATURAL;
 
         vte_terminal_set_hadjustment(terminal, NULL);
-#endif
-
 	vte_terminal_set_vadjustment(terminal, NULL);
-
 
 	/* Set up dummy metrics, value != 0 to avoid division by 0 */
 	terminal->char_width = 1;
@@ -8375,6 +8638,11 @@ vte_terminal_init(VteTerminal *terminal)
 	pvt->normal_screen.status_line_contents = g_string_new(NULL);
 	pvt->screen = &terminal->pvt->normal_screen;
 	_vte_terminal_set_default_attributes(terminal);
+
+	/* Set up the desired palette. */
+	vte_terminal_set_default_colors(terminal);
+	for (i = 0; i < VTE_PALETTE_SIZE; i++)
+		terminal->pvt->palette[i].sources[VTE_COLOR_SOURCE_ESCAPE].is_set = FALSE;
 
 	/* Set up I/O encodings. */
 	pvt->iso2022 = _vte_iso2022_state_new(pvt->encoding,
@@ -8411,6 +8679,7 @@ vte_terminal_init(VteTerminal *terminal)
 
 	/* Scrolling options. */
 	pvt->scroll_on_keystroke = TRUE;
+	pvt->alternate_screen_scroll = TRUE;
         pvt->scrollback_lines = -1; /* force update in vte_terminal_set_scrollback_lines */
 	vte_terminal_set_scrollback_lines(terminal, VTE_SCROLLBACK_INIT);
 
@@ -8425,6 +8694,8 @@ vte_terminal_init(VteTerminal *terminal)
 	pvt->bell_margin = 10;
 	pvt->allow_bold = TRUE;
 	pvt->nrc_mode = TRUE;
+        pvt->deccolm_mode = FALSE;
+        pvt->rewrap_on_resize = TRUE;
 	vte_terminal_set_default_tabstops(terminal);
 
 	/* Cursor shape. */
@@ -8460,6 +8731,8 @@ vte_terminal_init(VteTerminal *terminal)
 	pvt->has_fonts = FALSE;
 	pvt->root_pixmap_changed_tag = 0;
 
+        pvt->alternate_screen_scroll = TRUE;
+
 	/* Not all backends generate GdkVisibilityNotify, so mark the
 	 * window as unobscured initially. */
 	pvt->visibility_state = GDK_VISIBILITY_UNOBSCURED;
@@ -8476,20 +8749,13 @@ vte_terminal_init(VteTerminal *terminal)
 	/* gtk_widget_get_accessible(&terminal->widget); */
 #endif
 
-#if GTK_CHECK_VERSION (2, 99, 0)
-{
-        GtkStyleContext *context;
-
         context = gtk_widget_get_style_context (&terminal->widget);
         gtk_style_context_add_provider (context,
                                         VTE_TERMINAL_GET_CLASS (terminal)->priv->style_provider,
                                         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 }
-#endif
-}
 
 /* Tell GTK+ how much space we need. */
-#if GTK_CHECK_VERSION (2, 91, 0)
 static void
 vte_terminal_get_preferred_width(GtkWidget *widget,
 				 int       *minimum_width,
@@ -8549,35 +8815,6 @@ vte_terminal_get_preferred_height(GtkWidget *widget,
 			terminal->column_count,
 			terminal->row_count);
 }
-#else /* GTK+ 2.x */
-static void
-vte_terminal_size_request(GtkWidget *widget, GtkRequisition *requisition)
-{
-	VteTerminal *terminal;
-
-	_vte_debug_print(VTE_DEBUG_LIFECYCLE, "vte_terminal_size_request()\n");
-
-	terminal = VTE_TERMINAL(widget);
-
-	vte_terminal_ensure_font (terminal);
-
-        vte_terminal_refresh_size(terminal);
-        requisition->width = terminal->char_width * terminal->column_count;
-        requisition->height = terminal->char_height * terminal->row_count;
-
-	requisition->width += terminal->pvt->inner_border.left +
-                              terminal->pvt->inner_border.right;
-	requisition->height += terminal->pvt->inner_border.top +
-                               terminal->pvt->inner_border.bottom;
-
-	_vte_debug_print(VTE_DEBUG_WIDGET_SIZE,
-			"[Terminal %p] Size request is %dx%d for %ldx%ld cells.\n",
-                        terminal,
-			requisition->width, requisition->height,
-			terminal->column_count,
-			terminal->row_count);
-}
-#endif
 
 /* Accept a given size from GTK+. */
 static void
@@ -8619,30 +8856,9 @@ vte_terminal_size_allocate(GtkWidget *widget, GtkAllocation *allocation)
 			|| height != terminal->row_count
 			|| update_scrollback)
 	{
-		VteScreen *screen = terminal->pvt->screen;
-
 		/* Set the size of the pseudo-terminal. */
 		vte_terminal_set_size(terminal, width, height);
 
-		/* Adjust scrolling area in case our boundaries have just been
-		 * redefined to be invalid. */
-		if (screen->scrolling_restricted) {
-			screen->scrolling_region.start =
-				MIN(screen->scrolling_region.start,
-						terminal->row_count - 1);
-			screen->scrolling_region.end =
-				MIN(screen->scrolling_region.end,
-						terminal->row_count - 1);
-		}
-
-		/* Ensure scrollback buffers cover the screen. */
-		vte_terminal_set_scrollback_lines(terminal,
-				terminal->pvt->scrollback_lines);
-		/* Ensure the cursor is valid */
-		screen->cursor_current.row = CLAMP (screen->cursor_current.row,
-				_vte_ring_delta (screen->row_data),
-				MAX (_vte_ring_delta (screen->row_data),
-					_vte_ring_next (screen->row_data) - 1));
 		/* Notify viewers that the contents have changed. */
 		_vte_terminal_queue_contents_changed(terminal);
 	}
@@ -9025,8 +9241,7 @@ vte_terminal_realize(GtkWidget *widget)
 	VteTerminal *terminal;
 	GdkWindowAttr attributes;
 	GtkAllocation allocation;
-        GdkColor color;
-	guint attributes_mask = 0, i;
+	guint attributes_mask = 0;
 
 	_vte_debug_print(VTE_DEBUG_LIFECYCLE, "vte_terminal_realize()\n");
 
@@ -9053,13 +9268,13 @@ vte_terminal_realize(GtkWidget *widget)
 	attributes.height = allocation.height;
 	attributes.wclass = GDK_INPUT_OUTPUT;
 	attributes.visual = gtk_widget_get_visual (widget);
-#if !GTK_CHECK_VERSION (2, 90, 8)
-	attributes.colormap = gtk_widget_get_colormap (widget);
-#endif
 	attributes.event_mask = gtk_widget_get_events(widget) |
 				GDK_EXPOSURE_MASK |
 				GDK_VISIBILITY_NOTIFY_MASK |
 				GDK_FOCUS_CHANGE_MASK |
+#if GTK_CHECK_VERSION (3, 4, 0)
+				GDK_SMOOTH_SCROLL_MASK |
+#endif
 				GDK_SCROLL_MASK |
 				GDK_BUTTON_PRESS_MASK |
 				GDK_BUTTON_RELEASE_MASK |
@@ -9073,9 +9288,6 @@ vte_terminal_realize(GtkWidget *widget)
 	attributes_mask = GDK_WA_X |
 			  GDK_WA_Y |
 			  (attributes.visual ? GDK_WA_VISUAL : 0) |
-#if !GTK_CHECK_VERSION (2, 90, 8)
-			  (attributes.colormap ? GDK_WA_COLORMAP : 0) |
-#endif
 			  GDK_WA_CURSOR;
 
 	window = gdk_window_new (gtk_widget_get_parent_window (widget),
@@ -9083,24 +9295,11 @@ vte_terminal_realize(GtkWidget *widget)
 
 	gtk_widget_set_window (widget, window);
 	gdk_window_set_user_data (window, widget);
+	gtk_style_context_set_background(gtk_widget_get_style_context(widget), window);
 	_VTE_DEBUG_IF (VTE_DEBUG_UPDATES) gdk_window_set_debug_updates (TRUE);
 
 	/* Set the realized flag. */
 	gtk_widget_set_realized (widget, TRUE);
-
-	/* Set up the desired palette. */
-	if (!terminal->pvt->palette_initialized) {
-		vte_terminal_set_default_colors(terminal);
-	}
-
-	/* Allocate colors. */
-	for (i = 0; i < G_N_ELEMENTS(terminal->pvt->palette); i++) {
-		color.red = terminal->pvt->palette[i].red;
-		color.green = terminal->pvt->palette[i].green;
-		color.blue = terminal->pvt->palette[i].blue;
-		color.pixel = 0;
-		vte_terminal_set_color_internal(terminal, i, &color);
-	}
 
 	/* Set up input method support.  FIXME: do we need to handle the
 	 * "retrieve-surrounding" and "delete-surrounding" events? */
@@ -9129,28 +9328,12 @@ vte_terminal_realize(GtkWidget *widget)
 	terminal->pvt->modifiers = 0;
 
 	/* Create our invisible cursor. */
-#if GTK_CHECK_VERSION (2, 15, 1)
 	terminal->pvt->mouse_inviso_cursor = gdk_cursor_new_for_display(gtk_widget_get_display(widget), GDK_BLANK_CURSOR);
-#else
-    {
-	GdkPixmap *bitmap;
-	GdkColor black = {0,0,0,0};
 
-	bitmap = gdk_bitmap_create_from_data (window, "\0", 1, 1);
-	terminal->pvt->mouse_inviso_cursor = gdk_cursor_new_from_pixmap(bitmap,
-									bitmap,
-									&black,
-									&black,
-									0, 0);
-	g_object_unref(bitmap);
-    }
-#endif /* GTK >= 2.15.1 */
+        /* Make sure the style is set, bug 727614. */
+        vte_terminal_style_updated (widget);
 
-#if GTK_CHECK_VERSION (2, 20, 0)
 	gtk_widget_style_attach (widget);
-#else
-	widget->style = gtk_style_attach(widget->style, widget->window);
-#endif
 
 	vte_terminal_ensure_font (terminal);
 
@@ -9183,32 +9366,32 @@ vte_terminal_determine_colors_internal(VteTerminal *terminal,
 
 	/* Reverse-mode switches default fore and back colors */
 	if (G_UNLIKELY (terminal->pvt->screen->reverse_mode)) {
-		if (fore == VTE_DEF_FG)
-			fore = VTE_DEF_BG;
-		if (back == VTE_DEF_BG)
-			back = VTE_DEF_FG;
+		if (fore == VTE_DEFAULT_FG)
+			fore = VTE_DEFAULT_BG;
+		if (back == VTE_DEFAULT_BG)
+			back = VTE_DEFAULT_FG;
 	}
 
 	/* Handle bold by using set bold color or brightening */
 	if (cell->attr.bold) {
-		if (fore == VTE_DEF_FG)
+		if (fore == VTE_DEFAULT_FG)
 			fore = VTE_BOLD_FG;
-		else if (fore < VTE_LEGACY_COLOR_SET_SIZE) {
+		else if (fore >= VTE_LEGACY_COLORS_OFFSET && fore < VTE_LEGACY_COLORS_OFFSET + VTE_LEGACY_COLOR_SET_SIZE) {
 			fore += VTE_COLOR_BRIGHT_OFFSET;
 		}
 	}
 
 	/* Handle half similarly */
 	if (cell->attr.half) {
-		if (fore == VTE_DEF_FG)
+		if (fore == VTE_DEFAULT_FG)
 			fore = VTE_DIM_FG;
-		else if ((fore < VTE_LEGACY_COLOR_SET_SIZE))
-			fore = corresponding_dim_index[fore];
+		else if (fore >= VTE_LEGACY_COLORS_OFFSET && fore < VTE_LEGACY_COLORS_OFFSET + VTE_LEGACY_COLOR_SET_SIZE)
+			fore = corresponding_dim_index[fore - VTE_LEGACY_COLORS_OFFSET];
 	}
 
 	/* And standout */
 	if (cell->attr.standout) {
-		if (back < VTE_LEGACY_COLOR_SET_SIZE)
+		if (back >= VTE_LEGACY_COLORS_OFFSET && back < VTE_LEGACY_COLORS_OFFSET + VTE_LEGACY_COLOR_SET_SIZE)
 			back += VTE_COLOR_BRIGHT_OFFSET;
 	}
 
@@ -9217,20 +9400,27 @@ vte_terminal_determine_colors_internal(VteTerminal *terminal,
 		swap (&fore, &back);
 	}
 
-	/* Selection: use hightlight back, or inverse */
+	/* Selection: use hightlight back/fore, or inverse */
 	if (selected) {
 		/* XXX what if hightlight back is same color as current back? */
-		if (terminal->pvt->highlight_color_set)
-			back = VTE_DEF_HL;
-		else
+		gboolean do_swap = TRUE;
+		if (_vte_terminal_get_color(terminal, VTE_HIGHLIGHT_BG) != NULL) {
+			back = VTE_HIGHLIGHT_BG;
+			do_swap = FALSE;
+		}
+		if (_vte_terminal_get_color(terminal, VTE_HIGHLIGHT_FG) != NULL) {
+			fore = VTE_HIGHLIGHT_FG;
+			do_swap = FALSE;
+		}
+		if (do_swap)
 			swap (&fore, &back);
 	}
 
 	/* Cursor: use cursor back, or inverse */
 	if (cursor) {
 		/* XXX what if cursor back is same color as current back? */
-		if (terminal->pvt->cursor_color_set)
-			back = VTE_CUR_BG;
+		if (_vte_terminal_get_color(terminal, VTE_CURSOR_BG) != NULL)
+			back = VTE_CURSOR_BG;
 		else
 			swap (&fore, &back);
 	}
@@ -9318,6 +9508,8 @@ vte_terminal_draw_rectangle(VteTerminal *terminal,
 				 color, VTE_DRAW_OPAQUE);
 }
 
+#include "box_drawing.h"
+
 /* Draw the graphic representation of a line-drawing or special graphics
  * character. */
 static gboolean
@@ -9326,24 +9518,28 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
 			  gint x, gint y,
 			  gint column_width, gint columns, gint row_height)
 {
-	gint width, xcenter, xright, ycenter, ybottom, i;
+	gint width, xcenter, xright, ycenter, ybottom;
         int upper_half, lower_half, left_half, right_half;
         int light_line_width, heavy_line_width;
         double adjust;
         cairo_t *cr = _vte_draw_get_context (terminal->pvt->draw);
 
+        PangoColor fg, bg;
+        vte_terminal_get_rgb_from_index(terminal, fore, &fg);
+        vte_terminal_get_rgb_from_index(terminal, back, &bg);
+
         width = column_width * columns;
 
-	if ((back != VTE_DEF_BG) || draw_default_bg) {
+	if ((back != VTE_DEFAULT_BG) || draw_default_bg) {
 		vte_terminal_fill_rectangle(terminal,
-					    &terminal->pvt->palette[back],
+					    &bg,
 					    x, y, width, row_height);
 	}
 
         cairo_save (cr);
 
         cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-        _vte_draw_set_source_color_alpha (terminal->pvt->draw, &terminal->pvt->palette[fore], VTE_DRAW_OPAQUE);
+        _vte_draw_set_source_color_alpha (terminal->pvt->draw, &fg, VTE_DRAW_OPAQUE);
 
         // FIXME wtf!?
         x += terminal->pvt->inner_border.left;
@@ -9354,10 +9550,22 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         left_half = width / 2;
         right_half = width - left_half;
 
-        light_line_width = (terminal->char_width + 4) / 5;
+        /* Note that the upper/left halves above are the same as 4 eights */
+        /* FIXME: this could be smarter for very small n (< 8 resp. < 4) */
+#define EIGHTS(n, k) \
+        ({ int k_eights = (n) * (k) / 8; \
+           k_eights = MAX(k_eights, 1); \
+           k_eights; \
+        })
+
+        light_line_width = terminal->char_width / 5;
         light_line_width = MAX (light_line_width, 1);
 
-        heavy_line_width = light_line_width + 2;
+	if (c >= 0x2550 && c <= 0x256c) {
+		heavy_line_width = 3 * light_line_width;
+	} else {
+		heavy_line_width = light_line_width + 2;
+	}
 
         xcenter = x + left_half;
         ycenter = y + upper_half;
@@ -9371,66 +9579,6 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         case 0x2501: /* box drawings heavy horizontal */
         case 0x2502: /* box drawings light vertical */
         case 0x2503: /* box drawings heavy vertical */
-        case 0x2504: /* box drawings light triple dash horizontal */
-        case 0x2505: /* box drawings heavy triple dash horizontal */
-        case 0x2506: /* box drawings light triple dash vertical */
-        case 0x2507: /* box drawings heavy triple dash vertical */
-        case 0x2508: /* box drawings light quadruple dash horizontal */
-        case 0x2509: /* box drawings heavy quadruple dash horizontal */
-        case 0x250a: /* box drawings light quadruple dash vertical */
-        case 0x250b: /* box drawings heavy quadruple dash vertical */
-        case 0x254c: /* box drawings light double dash horizontal */
-        case 0x254d: /* box drawings heavy double dash horizontal */
-        case 0x254e: /* box drawings light double dash vertical */
-        case 0x254f: /* box drawings heavy double dash vertical */
-        {
-                const guint v = c - 0x2500;
-                int size, line_width;
-
-                size = (v & 2) ? row_height : width;
-
-                switch (v >> 2) {
-                case 0: /* no dashes */
-                        break;
-                case 1: /* triple dash */
-                {
-                        double segment = size / 8.;
-                        double dashes[2] = { segment * 2., segment };
-                        cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0.);
-                        break;
-                }
-                case 2: /* quadruple dash */
-                {
-                        double segment = size / 11.;
-                        double dashes[2] = { segment * 2., segment };
-                        cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0.);
-                        break;
-                }
-                case 19: /* double dash */
-                {
-                        double segment = size / 5.;
-                        double dashes[2] = { segment * 2., segment };
-                        cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0.);
-                        break;
-                }
-                }
-
-                line_width = (v & 1) ? heavy_line_width : light_line_width;
-                adjust = (line_width & 1) ? .5 : 0.;
-
-                cairo_set_line_width(cr, line_width);
-                cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
-                if (v & 2) {
-                        cairo_move_to(cr, xcenter + adjust, y);
-                        cairo_line_to(cr, xcenter + adjust, y + row_height);
-                } else {
-                        cairo_move_to(cr, x, ycenter + adjust);
-                        cairo_line_to(cr, x + width, ycenter + adjust);
-                }
-                cairo_stroke(cr);
-                break;
-        }
-
         case 0x250c: /* box drawings light down and right */
         case 0x250d: /* box drawings down light and right heavy */
         case 0x250e: /* box drawings down heavy and right light */
@@ -9495,190 +9643,6 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         case 0x2549: /* box drawings right light and left vertical heavy */
         case 0x254a: /* box drawings left light and right vertical heavy */
         case 0x254b: /* box drawings heavy vertical and horizontal */
-        case 0x2574: /* box drawings light left */
-        case 0x2575: /* box drawings light up */
-        case 0x2576: /* box drawings light right */
-        case 0x2577: /* box drawings light down */
-        case 0x2578: /* box drawings heavy left */
-        case 0x2579: /* box drawings heavy up */
-        case 0x257a: /* box drawings heavy right */
-        case 0x257b: /* box drawings heavy down */
-        case 0x257c: /* box drawings light left and heavy right */
-        case 0x257d: /* box drawings light up and heavy down */
-        case 0x257e: /* box drawings heavy left and light right */
-        case 0x257f: /* box drawings heavy up and light down */
-        {
-                enum { BOX_LEFT_LIGHT       = 1 << 0,
-                       BOX_LEFT_HEAVY       = 1 << 1,
-                       BOX_RIGHT_LIGHT      = 1 << 2,
-                       BOX_RIGHT_HEAVY      = 1 << 3,
-                       BOX_TOP_LIGHT        = 1 << 4,
-                       BOX_TOP_HEAVY        = 1 << 5,
-                       BOX_BOTTOM_LIGHT     = 1 << 6,
-                       BOX_BOTTOM_HEAVY     = 1 << 7,
-                       BOX_HORIZONTAL_LIGHT = BOX_LEFT_LIGHT | BOX_RIGHT_LIGHT,
-                       BOX_HORIZONTAL_HEAVY = BOX_LEFT_HEAVY | BOX_RIGHT_HEAVY,
-                       BOX_VERTICAL_LIGHT   = BOX_TOP_LIGHT  | BOX_BOTTOM_LIGHT,
-                       BOX_VERTICAL_HEAVY   = BOX_TOP_HEAVY  | BOX_BOTTOM_HEAVY,
-                       BOX_LEFT             = BOX_LEFT_LIGHT | BOX_LEFT_HEAVY,
-                       BOX_RIGHT            = BOX_RIGHT_LIGHT | BOX_RIGHT_HEAVY,
-                       BOX_TOP              = BOX_TOP_LIGHT | BOX_TOP_HEAVY,
-                       BOX_BOTTOM           = BOX_BOTTOM_LIGHT | BOX_BOTTOM_HEAVY,
-                       BOX_HORIZONTAL       = BOX_HORIZONTAL_LIGHT | BOX_HORIZONTAL_HEAVY,
-                       BOX_VERTICAL         = BOX_VERTICAL_LIGHT | BOX_VERTICAL_HEAVY,
-                       BOX_LIGHT            = BOX_HORIZONTAL_LIGHT | BOX_VERTICAL_LIGHT,
-                       BOX_HEAVY            = BOX_HORIZONTAL_HEAVY | BOX_VERTICAL_HEAVY
-                };
-                static const guint8 const map[] = {
-                        BOX_BOTTOM_LIGHT | BOX_RIGHT_LIGHT,
-                        BOX_BOTTOM_LIGHT | BOX_RIGHT_HEAVY,
-                        BOX_BOTTOM_HEAVY | BOX_RIGHT_LIGHT,
-                        BOX_BOTTOM_HEAVY | BOX_RIGHT_HEAVY,
-                        BOX_BOTTOM_LIGHT | BOX_LEFT_LIGHT,
-                        BOX_BOTTOM_LIGHT | BOX_LEFT_HEAVY,
-                        BOX_BOTTOM_HEAVY | BOX_LEFT_LIGHT,
-                        BOX_BOTTOM_HEAVY | BOX_LEFT_HEAVY,
-                        BOX_TOP_LIGHT | BOX_RIGHT_LIGHT,
-                        BOX_TOP_LIGHT | BOX_RIGHT_HEAVY,
-                        BOX_TOP_HEAVY | BOX_RIGHT_LIGHT,
-                        BOX_TOP_HEAVY | BOX_RIGHT_HEAVY,
-                        BOX_TOP_LIGHT | BOX_LEFT_LIGHT,
-                        BOX_TOP_LIGHT | BOX_LEFT_HEAVY,
-                        BOX_TOP_HEAVY | BOX_LEFT_LIGHT,
-                        BOX_TOP_HEAVY | BOX_LEFT_HEAVY,
-                        BOX_VERTICAL_LIGHT | BOX_RIGHT_LIGHT,
-                        BOX_VERTICAL_LIGHT | BOX_RIGHT_HEAVY,
-                        BOX_TOP_HEAVY | BOX_RIGHT_LIGHT | BOX_BOTTOM_LIGHT,
-                        BOX_BOTTOM_HEAVY | BOX_RIGHT_LIGHT | BOX_TOP_LIGHT,
-                        BOX_VERTICAL_HEAVY | BOX_RIGHT_LIGHT,
-                        BOX_BOTTOM_LIGHT | BOX_RIGHT_HEAVY | BOX_TOP_HEAVY,
-                        BOX_TOP_LIGHT | BOX_RIGHT_HEAVY | BOX_BOTTOM_HEAVY,
-                        BOX_VERTICAL_HEAVY | BOX_RIGHT_HEAVY,
-                        BOX_VERTICAL_LIGHT | BOX_LEFT_LIGHT,
-                        BOX_VERTICAL_LIGHT | BOX_LEFT_HEAVY,
-                        BOX_TOP_HEAVY | BOX_LEFT_LIGHT | BOX_BOTTOM_LIGHT,
-                        BOX_BOTTOM_HEAVY | BOX_LEFT_LIGHT | BOX_TOP_LIGHT,
-                        BOX_VERTICAL_HEAVY | BOX_LEFT_LIGHT,
-                        BOX_BOTTOM_LIGHT | BOX_LEFT_HEAVY | BOX_TOP_HEAVY,
-                        BOX_TOP_LIGHT | BOX_LEFT_HEAVY | BOX_BOTTOM_HEAVY,
-                        BOX_VERTICAL_HEAVY | BOX_LEFT_HEAVY,
-                        BOX_BOTTOM_LIGHT | BOX_HORIZONTAL_LIGHT,
-                        BOX_LEFT_HEAVY | BOX_RIGHT_LIGHT | BOX_BOTTOM_LIGHT,
-                        BOX_RIGHT_HEAVY | BOX_LEFT_LIGHT | BOX_BOTTOM_LIGHT,
-                        BOX_BOTTOM_LIGHT | BOX_HORIZONTAL_HEAVY,
-                        BOX_BOTTOM_HEAVY | BOX_HORIZONTAL_LIGHT,
-                        BOX_RIGHT_LIGHT | BOX_LEFT_HEAVY | BOX_BOTTOM_HEAVY,
-                        BOX_LEFT_LIGHT | BOX_RIGHT_HEAVY | BOX_BOTTOM_HEAVY,
-                        BOX_BOTTOM_HEAVY| BOX_HORIZONTAL_HEAVY,
-                        BOX_TOP_LIGHT | BOX_HORIZONTAL_LIGHT,
-                        BOX_LEFT_HEAVY | BOX_RIGHT_LIGHT | BOX_TOP_LIGHT,
-                        BOX_RIGHT_HEAVY | BOX_LEFT_LIGHT | BOX_TOP_LIGHT,
-                        BOX_TOP_LIGHT | BOX_HORIZONTAL_HEAVY,
-                        BOX_TOP_HEAVY | BOX_HORIZONTAL_LIGHT,
-                        BOX_RIGHT_LIGHT | BOX_LEFT_HEAVY | BOX_TOP_HEAVY,
-                        BOX_LEFT_LIGHT | BOX_RIGHT_HEAVY | BOX_TOP_HEAVY,
-                        BOX_TOP_HEAVY | BOX_HORIZONTAL_HEAVY,
-                        BOX_VERTICAL_LIGHT | BOX_HORIZONTAL_LIGHT,
-                        BOX_LEFT_HEAVY | BOX_RIGHT_LIGHT | BOX_VERTICAL_LIGHT,
-                        BOX_RIGHT_HEAVY | BOX_LEFT_LIGHT | BOX_VERTICAL_LIGHT,
-                        BOX_VERTICAL_LIGHT | BOX_HORIZONTAL_HEAVY,
-                        BOX_TOP_HEAVY | BOX_BOTTOM_LIGHT | BOX_HORIZONTAL_LIGHT,
-                        BOX_BOTTOM_HEAVY| BOX_TOP_LIGHT | BOX_HORIZONTAL_LIGHT,
-                        BOX_VERTICAL_HEAVY | BOX_HORIZONTAL_LIGHT,
-                        BOX_LEFT_HEAVY | BOX_RIGHT_LIGHT | BOX_TOP_HEAVY | BOX_BOTTOM_LIGHT,
-                        BOX_RIGHT_HEAVY | BOX_TOP_HEAVY | BOX_LEFT_LIGHT | BOX_BOTTOM_LIGHT,
-                        BOX_LEFT_HEAVY | BOX_BOTTOM_HEAVY | BOX_RIGHT_LIGHT | BOX_TOP_LIGHT,
-                        BOX_RIGHT_HEAVY | BOX_BOTTOM_HEAVY | BOX_LEFT_LIGHT | BOX_TOP_LIGHT,
-                        BOX_BOTTOM_LIGHT | BOX_TOP_HEAVY | BOX_HORIZONTAL_HEAVY,
-                        BOX_TOP_LIGHT | BOX_BOTTOM_HEAVY | BOX_HORIZONTAL_HEAVY,
-                        BOX_RIGHT_LIGHT | BOX_LEFT_HEAVY | BOX_VERTICAL_HEAVY,
-                        BOX_LEFT_LIGHT | BOX_RIGHT_HEAVY | BOX_VERTICAL_HEAVY,
-                        BOX_VERTICAL_HEAVY | BOX_HORIZONTAL_HEAVY,
-
-                        /* U+254C - U+2573 are handled elsewhere */
-                        0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0,
-
-                        BOX_LEFT_LIGHT,
-                        BOX_TOP_LIGHT,
-                        BOX_RIGHT_LIGHT,
-                        BOX_BOTTOM_LIGHT,
-                        BOX_LEFT_HEAVY,
-                        BOX_TOP_HEAVY,
-                        BOX_RIGHT_HEAVY,
-                        BOX_BOTTOM_HEAVY,
-                        BOX_LEFT_LIGHT | BOX_RIGHT_HEAVY,
-                        BOX_TOP_LIGHT | BOX_BOTTOM_HEAVY,
-                        BOX_LEFT_HEAVY | BOX_RIGHT_LIGHT,
-                        BOX_TOP_HEAVY | BOX_BOTTOM_LIGHT
-                };
-                G_STATIC_ASSERT(G_N_ELEMENTS(map) == (0x257f - 0x250c + 1));
-                const guint v = c - 0x250c;
-                const guint8 m = map[v];
-                int line_width;
-
-                cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
-
-                if (m & BOX_LEFT) {
-                        line_width = (m & BOX_LEFT_HEAVY) ? heavy_line_width : light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr, x, ycenter + adjust);
-                        cairo_line_to(cr, xcenter, ycenter + adjust);
-                        cairo_stroke(cr);
-                }
-                if (m & BOX_RIGHT) {
-                        line_width = (m & BOX_RIGHT_HEAVY) ? heavy_line_width : light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr, xcenter, ycenter + adjust);
-                        cairo_line_to(cr, xright, ycenter + adjust);
-                        cairo_stroke(cr);
-                }
-                if (m & BOX_TOP) {
-                        line_width = (m & BOX_TOP_HEAVY) ? heavy_line_width : light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr, xcenter + adjust, y);
-                        cairo_line_to(cr, xcenter + adjust, ycenter);
-                        cairo_stroke(cr);
-                }
-                if (m & BOX_BOTTOM) {
-                        line_width = (m & BOX_BOTTOM_HEAVY) ? heavy_line_width : light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr, xcenter + adjust, ycenter);
-                        cairo_line_to(cr, xcenter + adjust, ybottom);
-                        cairo_stroke(cr);
-                }
-
-                /* Make the join not look jagged */
-                if ((m & BOX_HORIZONTAL) && (m & BOX_VERTICAL)) {
-                        int xs, ys, w, h;
-
-                        if (m & BOX_HORIZONTAL_HEAVY) {
-                                ys = ycenter - heavy_line_width / 2;
-                                h = heavy_line_width;
-                        } else {
-                                ys = ycenter - light_line_width / 2;
-                                h = light_line_width;
-                        }
-                        if (m & BOX_VERTICAL_HEAVY) {
-                                xs = xcenter - heavy_line_width / 2;
-                                w = heavy_line_width;
-                        } else {
-                                xs = xcenter - light_line_width / 2;
-                                w = light_line_width;
-                        }
-                        cairo_rectangle(cr, xs, ys, w, h);
-                        cairo_fill(cr);
-                }
-
-                break;
-        }
-
         case 0x2550: /* box drawings double horizontal */
         case 0x2551: /* box drawings double vertical */
         case 0x2552: /* box drawings down single and right double */
@@ -9708,147 +9672,105 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         case 0x256a: /* box drawings vertical single and horizontal double */
         case 0x256b: /* box drawings vertical double and horizontal single */
         case 0x256c: /* box drawings double vertical and horizontal */
+        case 0x2574: /* box drawings light left */
+        case 0x2575: /* box drawings light up */
+        case 0x2576: /* box drawings light right */
+        case 0x2577: /* box drawings light down */
+        case 0x2578: /* box drawings heavy left */
+        case 0x2579: /* box drawings heavy up */
+        case 0x257a: /* box drawings heavy right */
+        case 0x257b: /* box drawings heavy down */
+        case 0x257c: /* box drawings light left and heavy right */
+        case 0x257d: /* box drawings light up and heavy down */
+        case 0x257e: /* box drawings heavy left and light right */
+        case 0x257f: /* box drawings heavy up and light down */
         {
-                enum { BOX_LEFT_SINGLE       = 1 << 0,
-                       BOX_LEFT_DOUBLE       = 1 << 1,
-                       BOX_RIGHT_SINGLE      = 1 << 2,
-                       BOX_RIGHT_DOUBLE      = 1 << 3,
-                       BOX_TOP_SINGLE        = 1 << 4,
-                       BOX_TOP_DOUBLE        = 1 << 5,
-                       BOX_BOTTOM_SINGLE     = 1 << 6,
-                       BOX_BOTTOM_DOUBLE     = 1 << 7,
-                       BOX_LEFT              = BOX_LEFT_SINGLE | BOX_LEFT_DOUBLE,
-                       BOX_RIGHT             = BOX_RIGHT_SINGLE | BOX_RIGHT_DOUBLE,
-                       BOX_TOP               = BOX_TOP_SINGLE | BOX_TOP_DOUBLE,
-                       BOX_BOTTOM            = BOX_BOTTOM_SINGLE | BOX_BOTTOM_DOUBLE,
-                       BOX_SINGLE            = BOX_LEFT_SINGLE | BOX_RIGHT_SINGLE | BOX_TOP_SINGLE | BOX_BOTTOM_SINGLE,
-                       BOX_DOUBLE            = BOX_LEFT_DOUBLE | BOX_RIGHT_DOUBLE | BOX_TOP_DOUBLE | BOX_BOTTOM_DOUBLE,
-                       BOX_HORIZONTAL_SINGLE = BOX_LEFT_SINGLE | BOX_RIGHT_SINGLE,
-                       BOX_HORIZONTAL_DOUBLE = BOX_LEFT_DOUBLE | BOX_RIGHT_DOUBLE,
-                       BOX_VERTICAL_SINGLE   = BOX_TOP_SINGLE  | BOX_BOTTOM_SINGLE,
-                       BOX_VERTICAL_DOUBLE   = BOX_TOP_DOUBLE  | BOX_BOTTOM_DOUBLE
-                };
-                static const guint8 const map[] = {
-                        BOX_HORIZONTAL_DOUBLE,
-                        BOX_VERTICAL_DOUBLE,
-                        BOX_BOTTOM_SINGLE | BOX_RIGHT_DOUBLE,
-                        BOX_BOTTOM_DOUBLE | BOX_RIGHT_SINGLE,
-                        BOX_BOTTOM_DOUBLE | BOX_RIGHT_DOUBLE,
-                        BOX_BOTTOM_SINGLE | BOX_LEFT_DOUBLE,
-                        BOX_BOTTOM_DOUBLE | BOX_LEFT_SINGLE,
-                        BOX_BOTTOM_DOUBLE | BOX_LEFT_DOUBLE,
-                        BOX_TOP_SINGLE | BOX_RIGHT_DOUBLE,
-                        BOX_TOP_DOUBLE | BOX_RIGHT_SINGLE,
-                        BOX_TOP_DOUBLE | BOX_RIGHT_DOUBLE,
-                        BOX_TOP_SINGLE | BOX_LEFT_DOUBLE,
-                        BOX_TOP_DOUBLE | BOX_LEFT_SINGLE,
-                        BOX_TOP_DOUBLE | BOX_LEFT_DOUBLE,
-                        BOX_VERTICAL_SINGLE | BOX_RIGHT_DOUBLE,
-                        BOX_VERTICAL_DOUBLE | BOX_RIGHT_SINGLE,
-                        BOX_VERTICAL_DOUBLE | BOX_RIGHT_DOUBLE,
-                        BOX_VERTICAL_SINGLE | BOX_LEFT_DOUBLE,
-                        BOX_VERTICAL_DOUBLE | BOX_LEFT_SINGLE,
-                        BOX_VERTICAL_DOUBLE | BOX_LEFT_DOUBLE,
-                        BOX_BOTTOM_SINGLE | BOX_HORIZONTAL_DOUBLE,
-                        BOX_BOTTOM_DOUBLE | BOX_HORIZONTAL_SINGLE,
-                        BOX_BOTTOM_DOUBLE | BOX_HORIZONTAL_DOUBLE,
-                        BOX_TOP_SINGLE | BOX_HORIZONTAL_DOUBLE,
-                        BOX_TOP_DOUBLE | BOX_HORIZONTAL_SINGLE,
-                        BOX_TOP_DOUBLE | BOX_HORIZONTAL_DOUBLE,
-                        BOX_VERTICAL_SINGLE | BOX_HORIZONTAL_DOUBLE,
-                        BOX_VERTICAL_DOUBLE | BOX_HORIZONTAL_SINGLE,
-                        BOX_VERTICAL_DOUBLE | BOX_HORIZONTAL_DOUBLE
-                };
-                G_STATIC_ASSERT(G_N_ELEMENTS(map) == (0x256c - 0x2550 + 1));
-                const guint v = c - 0x2550;
-                const guint8 m = map[v];
-                int line_width;
-                int double_line_width, half_double_line_width, half_double_line_width_plus_1;
-                int inner_line_width;
+                guint32 bitmap = _vte_box_drawing_bitmaps[c - 0x2500];
+                int xboundaries[6] = { 0,
+                                       left_half - heavy_line_width / 2,
+                                       left_half - light_line_width / 2,
+                                       left_half - light_line_width / 2 + light_line_width,
+                                       left_half - heavy_line_width / 2 + heavy_line_width,
+                                       terminal->char_width};
+                int yboundaries[6] = { 0,
+                                       upper_half - heavy_line_width / 2,
+                                       upper_half - light_line_width / 2,
+                                       upper_half - light_line_width / 2 + light_line_width,
+                                       upper_half - heavy_line_width / 2 + heavy_line_width,
+                                       terminal->char_height};
+                int xi, yi;
+                cairo_set_line_width(cr, 0);
+                for (yi = 4; yi >= 0; yi--) {
+                        for (xi = 4; xi >= 0; xi--) {
+                                if (bitmap & 1) {
+                                        cairo_rectangle(cr,
+                                                        x + xboundaries[xi],
+                                                        y + yboundaries[yi],
+                                                        xboundaries[xi + 1] - xboundaries[xi],
+                                                        yboundaries[yi + 1] - yboundaries[yi]);
+                                        cairo_fill(cr);
+                                }
+                                bitmap >>= 1;
+                        }
+                }
+                break;
+        }
 
+        case 0x2504: /* box drawings light triple dash horizontal */
+        case 0x2505: /* box drawings heavy triple dash horizontal */
+        case 0x2506: /* box drawings light triple dash vertical */
+        case 0x2507: /* box drawings heavy triple dash vertical */
+        case 0x2508: /* box drawings light quadruple dash horizontal */
+        case 0x2509: /* box drawings heavy quadruple dash horizontal */
+        case 0x250a: /* box drawings light quadruple dash vertical */
+        case 0x250b: /* box drawings heavy quadruple dash vertical */
+        case 0x254c: /* box drawings light double dash horizontal */
+        case 0x254d: /* box drawings heavy double dash horizontal */
+        case 0x254e: /* box drawings light double dash vertical */
+        case 0x254f: /* box drawings heavy double dash vertical */
+        {
+                const guint v = c - 0x2500;
+                int size, line_width;
+
+                size = (v & 2) ? row_height : width;
+
+                switch (v >> 2) {
+                case 1: /* triple dash */
+                {
+                        double segment = size / 8.;
+                        double dashes[2] = { segment * 2., segment };
+                        cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0.);
+                        break;
+                }
+                case 2: /* quadruple dash */
+                {
+                        double segment = size / 11.;
+                        double dashes[2] = { segment * 2., segment };
+                        cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0.);
+                        break;
+                }
+                case 19: /* double dash */
+                {
+                        double segment = size / 5.;
+                        double dashes[2] = { segment * 2., segment };
+                        cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0.);
+                        break;
+                }
+                }
+
+                line_width = (v & 1) ? heavy_line_width : light_line_width;
+                adjust = (line_width & 1) ? .5 : 0.;
+
+                cairo_set_line_width(cr, line_width);
                 cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
-
-                double_line_width = MAX (heavy_line_width, 3);
-                half_double_line_width = double_line_width / 2;
-                half_double_line_width_plus_1 = (double_line_width + 1) / 2;
-                inner_line_width = double_line_width / 3;
-                adjust = (inner_line_width & 1) ? .5 : 0.;
-
-                if (m & BOX_LEFT) {
-                        line_width = (m & BOX_LEFT_DOUBLE) ? double_line_width: light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr, x, ycenter + adjust);
-                        cairo_line_to(cr,
-                                      (m & BOX_VERTICAL_DOUBLE) ? xcenter + half_double_line_width_plus_1: xcenter,
-                                      ycenter + adjust);
-                        cairo_stroke(cr);
-                }
-                if (m & BOX_RIGHT) {
-                        line_width = (m & BOX_RIGHT_DOUBLE) ? double_line_width: light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr,
-                                      (m & BOX_VERTICAL_DOUBLE) ? xcenter - half_double_line_width: xcenter,
-                                      ycenter + adjust);
-                        cairo_line_to(cr, xright, ycenter + adjust);
-                        cairo_stroke(cr);
-                }
-                if (m & BOX_TOP) {
-                        line_width = (m & BOX_TOP_DOUBLE) ? double_line_width: light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
+                if (v & 2) {
                         cairo_move_to(cr, xcenter + adjust, y);
-                        cairo_line_to(cr,
-                                      xcenter + adjust,
-                                      (m & BOX_HORIZONTAL_DOUBLE) ? ycenter + half_double_line_width_plus_1 : ycenter);
-                        cairo_stroke(cr);
+                        cairo_line_to(cr, xcenter + adjust, y + row_height);
+                } else {
+                        cairo_move_to(cr, x, ycenter + adjust);
+                        cairo_line_to(cr, x + width, ycenter + adjust);
                 }
-                if (m & BOX_BOTTOM) {
-                        line_width = (m & BOX_BOTTOM_DOUBLE) ? double_line_width: light_line_width;
-                        adjust = (line_width & 1) ? .5 : 0.;
-                        cairo_set_line_width(cr, line_width);
-                        cairo_move_to(cr,
-                                      xcenter + adjust,
-                                      (m & BOX_HORIZONTAL_DOUBLE) ? ycenter - half_double_line_width : ycenter);
-                        cairo_line_to(cr, xcenter + adjust, ybottom);
-                        cairo_stroke(cr);
-                }
-
-                /* Now take the inside out */
-                cairo_set_source_rgba (cr,
-                                       terminal->pvt->palette[back].red / 65535.,
-                                       terminal->pvt->palette[back].green / 65535.,
-                                       terminal->pvt->palette[back].blue / 65535.,
-                                       1.);
-                cairo_set_line_width(cr, inner_line_width);
-                cairo_set_line_join(cr, CAIRO_LINE_JOIN_MITER);
-
-                if (m & BOX_VERTICAL_DOUBLE) {
-                        if (m & BOX_TOP) {
-                                cairo_move_to(cr, xcenter + adjust, y);
-                                cairo_line_to(cr, xcenter + adjust, ycenter);
-                        } else {
-                                cairo_move_to(cr, xcenter + adjust, ycenter);
-                        }
-                        if (m & BOX_BOTTOM) {
-                                cairo_line_to(cr, xcenter + adjust, ybottom);
-                        }
-                        cairo_stroke(cr);
-                }
-                if (m & BOX_HORIZONTAL_DOUBLE) {
-                        if (m & BOX_LEFT) {
-                                cairo_move_to(cr, x, ycenter + adjust);
-                                cairo_line_to(cr, xcenter, ycenter + adjust);
-                        } else {
-                                cairo_move_to(cr, xcenter, ycenter + adjust);
-                        }
-                        if (m & BOX_RIGHT) {
-                                cairo_line_to(cr, xright, ycenter + adjust);
-                        }
-                        cairo_stroke(cr);
-                }
-
+                cairo_stroke(cr);
                 break;
         }
 
@@ -9859,6 +9781,7 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         {
                 const guint v = c - 0x256d;
                 int line_width;
+                int radius;
 
                 cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
 
@@ -9866,13 +9789,36 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
                 adjust = (line_width & 1) ? .5 : 0.;
                 cairo_set_line_width(cr, line_width);
 
-                cairo_move_to(cr, xcenter + adjust, (v & 2) ? y : ybottom);
-                cairo_curve_to(cr, 
-                               xcenter + adjust, ycenter + adjust,
-                               xcenter + adjust, ycenter + adjust,
-                               (v == 1 || v == 2) ? x : xright, ycenter + adjust);
+                radius = (terminal->char_width + 2) / 3;
+                radius = MAX(radius, heavy_line_width);
+
+                if (v & 2) {
+                        cairo_move_to(cr, xcenter + adjust, y);
+                        cairo_line_to(cr, xcenter + adjust, ycenter - radius + 2 * adjust);
+                } else {
+                        cairo_move_to(cr, xcenter + adjust, ybottom);
+                        cairo_line_to(cr, xcenter + adjust, ycenter + radius);
+                }
                 cairo_stroke(cr);
 
+                cairo_arc(cr,
+                          (v == 1 || v == 2) ? xcenter - radius + 2 * adjust
+                                             : xcenter + radius,
+                          (v & 2) ? ycenter - radius + 2 * adjust
+                                  : ycenter + radius,
+                          radius - adjust,
+                          (v + 2) * M_PI / 2.0, (v + 3) * M_PI / 2.0);
+                cairo_stroke(cr);
+
+                if (v == 1 || v == 2) {
+                        cairo_move_to(cr, xcenter - radius + 2 * adjust, ycenter + adjust);
+                        cairo_line_to(cr, x, ycenter + adjust);
+                } else {
+                        cairo_move_to(cr, xcenter + radius, ycenter + adjust);
+                        cairo_line_to(cr, xright, ycenter + adjust);
+                }
+
+                cairo_stroke(cr);
                 break;
         }
 
@@ -9911,22 +9857,12 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         case 0x2587: /* lower seven eighths block */
         {
                 const guint v = c - 0x2580;
-                int h, half;
+                /* Use the number of eights from the top, so that
+                 * U+2584 aligns with U+2596..U+259f.
+                 */
+                const int h = EIGHTS (row_height, 8 - v);
 
-                if (v & 4) {
-                        half = upper_half;
-                        h = lower_half;
-                } else {
-                        half = lower_half;
-                        h = 0;
-                }
-
-                half /= 2;
-                if (v & 2) h += half;
-                half /= 2;
-                if (v & 1) h += half;
-
-                cairo_rectangle(cr, x, y + row_height - h, width, h);
+                cairo_rectangle(cr, x, y + h, width, row_height - h);
                 cairo_fill (cr);
                 break;
         }
@@ -9941,19 +9877,10 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         case 0x258f: /* left one eighth block */
         {
                 const guint v = c - 0x2588;
-                int w, half;
-
-                if (v & 4) {
-                        w = half = left_half;
-                } else {
-                        w = width;
-                        half = right_half;
-                }
-
-                half /= 2;
-                if (v & 2) w -= half;
-                half /= 2;
-                if (v & 1) w -= half;
+                /* Use the number of eights from the top, so that
+                 * U+258c aligns with U+2596..U+259f.
+                 */
+                const int w = EIGHTS (width, 8 - v);
 
                 cairo_rectangle(cr, x, y, w, row_height);
                 cairo_fill (cr);
@@ -9969,23 +9896,29 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
         case 0x2592: /* medium shade */
         case 0x2593: /* dark shade */
                 cairo_set_source_rgba (cr,
-                                       terminal->pvt->palette[fore].red / 65535.,
-                                       terminal->pvt->palette[fore].green / 65535.,
-                                       terminal->pvt->palette[fore].blue / 65535.,
+                                       fg.red / 65535.,
+                                       fg.green / 65535.,
+                                       fg.blue / 65535.,
                                        (c - 0x2590) / 4.);
                 cairo_rectangle(cr, x, y, width, row_height);
                 cairo_fill (cr);
                 break;
 
         case 0x2594: /* upper one eighth block */
-                cairo_rectangle(cr, x, y, width, upper_half / 4);
+        {
+                const int h = EIGHTS (row_height, 1); /* Align with U+2587 */
+                cairo_rectangle(cr, x, y, width, h);
                 cairo_fill (cr);
                 break;
+        }
 
         case 0x2595: /* right one eighth block */
-                cairo_rectangle(cr, x + width - right_half / 4, y, right_half / 4, row_height);
+        {
+                const int w = EIGHTS (width, 7);  /* Align with U+2589 */
+                cairo_rectangle(cr, x + w, y, width - w, row_height);
                 cairo_fill (cr);
                 break;
+        }
 
         case 0x2596: /* quadrant lower left */
                 cairo_rectangle(cr, x, y + upper_half, left_half, lower_half);
@@ -10051,6 +9984,8 @@ vte_terminal_draw_graphic(VteTerminal *terminal, vteunistr c,
                 g_assert_not_reached();
         }
 
+#undef EIGHTS
+
         cairo_restore(cr);
 
 	return TRUE;
@@ -10066,9 +10001,9 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 			gboolean strikethrough, gboolean hilite, gboolean boxed,
 			gint column_width, gint row_height)
 {
-	int i, x, y, ascent;
+	int i, x, y;
 	gint columns = 0;
-	PangoColor *fg, *bg, *defbg;
+	PangoColor fg, bg;
 
 	g_assert(n > 0);
 	_VTE_DEBUG_IF(VTE_DEBUG_CELLS) {
@@ -10086,10 +10021,8 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 	}
 
 	bold = bold && terminal->pvt->allow_bold;
-	fg = &terminal->pvt->palette[fore];
-	bg = &terminal->pvt->palette[back];
-	defbg = &terminal->pvt->palette[VTE_DEF_BG];
-	ascent = terminal->char_ascent;
+	vte_terminal_get_rgb_from_index(terminal, fore, &fg);
+	vte_terminal_get_rgb_from_index(terminal, back, &bg);
 
 	i = 0;
 	do {
@@ -10102,20 +10035,20 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 			items[i].y += terminal->pvt->inner_border.top;
 			columns += items[i].columns;
 		}
-		if (clear && (draw_default_bg || bg != defbg)) {
+		if (clear && (draw_default_bg || back != VTE_DEFAULT_BG)) {
 			gint bold_offset = _vte_draw_has_bold(terminal->pvt->draw,
 									VTE_DRAW_BOLD) ? 0 : bold;
 			_vte_draw_fill_rectangle(terminal->pvt->draw,
 					x + terminal->pvt->inner_border.left,
                                         y + terminal->pvt->inner_border.top,
 					columns * column_width + bold_offset, row_height,
-					bg, VTE_DRAW_OPAQUE);
+					&bg, VTE_DRAW_OPAQUE);
 		}
 	} while (i < n);
 
 	_vte_draw_text(terminal->pvt->draw,
 			items, n,
-			fg, VTE_DRAW_OPAQUE,
+			&fg, VTE_DRAW_OPAQUE,
 			_vte_draw_get_style(bold, italic));
 
 	for (i = 0; i < n; i++) {
@@ -10135,7 +10068,7 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 			}
 			if (underline) {
 				vte_terminal_draw_line(terminal,
-						&terminal->pvt->palette[fore],
+						&fg,
 						x,
 						y + terminal->pvt->underline_position,
 						x + (columns * column_width) - 1,
@@ -10143,7 +10076,7 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 			}
 			if (strikethrough) {
 				vte_terminal_draw_line(terminal,
-						&terminal->pvt->palette[fore],
+						&fg,
 						x,
 						y + terminal->pvt->strikethrough_position,
 						x + (columns * column_width) - 1,
@@ -10151,7 +10084,7 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 			}
 			if (hilite) {
 				vte_terminal_draw_line(terminal,
-						&terminal->pvt->palette[fore],
+						&fg,
 						x,
 						y + row_height - 1,
 						x + (columns * column_width) - 1,
@@ -10159,51 +10092,13 @@ vte_terminal_draw_cells(VteTerminal *terminal,
 			}
 			if (boxed) {
 				vte_terminal_draw_rectangle(terminal,
-						&terminal->pvt->palette[fore],
+						&fg,
 						x, y,
 						MAX(0, (columns * column_width)),
 						MAX(0, row_height));
 			}
 		}while (i < n);
 	}
-}
-
-/* Try to map a PangoColor to a palette entry and return its index. */
-static guint
-_vte_terminal_map_pango_color(VteTerminal *terminal, PangoColor *color)
-{
-	long distance[G_N_ELEMENTS(terminal->pvt->palette)];
-	guint i, ret;
-
-	/* Calculate a "distance" value.  Could stand to be improved a bit. */
-	for (i = 0; i < G_N_ELEMENTS(distance); i++) {
-		const PangoColor *entry = &terminal->pvt->palette[i];
-		distance[i] = 0;
-		distance[i] += ((entry->red >> 8) - (color->red >> 8)) *
-			       ((entry->red >> 8) - (color->red >> 8));
-		distance[i] += ((entry->blue >> 8) - (color->blue >> 8)) *
-			       ((entry->blue >> 8) - (color->blue >> 8));
-		distance[i] += ((entry->green >> 8) - (color->green >> 8)) *
-			       ((entry->green >> 8) - (color->green >> 8));
-	}
-
-	/* Find the index of the minimum value. */
-	ret = 0;
-	for (i = 1; i < G_N_ELEMENTS(distance); i++) {
-		if (distance[i] < distance[ret]) {
-			ret = i;
-		}
-	}
-
-	_vte_debug_print(VTE_DEBUG_UPDATES,
-			"mapped PangoColor(%04x,%04x,%04x) to "
-			"palette entry (%04x,%04x,%04x)\n",
-			color->red, color->green, color->blue,
-			terminal->pvt->palette[ret].red,
-			terminal->pvt->palette[ret].green,
-			terminal->pvt->palette[ret].blue);
-
-	return ret;
 }
 
 /* FIXME: we don't have a way to tell GTK+ what the default text attributes
@@ -10294,8 +10189,10 @@ _vte_terminal_apply_pango_attr(VteTerminal *terminal, PangoAttribute *attr,
 	case PANGO_ATTR_FOREGROUND:
 	case PANGO_ATTR_BACKGROUND:
 		attrcolor = (PangoAttrColor*) attr;
-		ival = _vte_terminal_map_pango_color(terminal,
-						     &attrcolor->color);
+		ival = VTE_RGB_COLOR |
+		       ((attrcolor->color.red & 0xFF00) << 8) |
+		       ((attrcolor->color.green & 0xFF00)) |
+		       ((attrcolor->color.blue & 0xFF00) >> 8);
 		for (i = attr->start_index;
 		     i < attr->end_index && i < n_cells;
 		     i++) {
@@ -10448,7 +10345,6 @@ vte_terminal_draw_rows(VteTerminal *terminal,
 	struct _vte_draw_text_request items[4*VTE_DRAW_MAX_LENGTH];
 	gint i, j, row, rows, x, y, end_column;
 	guint fore, nfore, back, nback;
-	glong delta;
 	gboolean underline, nunderline, bold, nbold, italic, nitalic, hilite, nhilite,
 		 selected, nselected, strikethrough, nstrikethrough;
 	guint item_count;
@@ -10460,7 +10356,6 @@ vte_terminal_draw_rows(VteTerminal *terminal,
 	end_column = start_column + column_count;
 
 	/* clear the background */
-	delta = screen->scroll_delta;
 	x = start_x + terminal->pvt->inner_border.left;
 	y = start_y + terminal->pvt->inner_border.top;
 	row = start_row;
@@ -10509,16 +10404,18 @@ vte_terminal_draw_rows(VteTerminal *terminal,
 					bold = cell && cell->attr.bold;
 					j += cell ? cell->attr.columns : 1;
 				}
-				if (back != VTE_DEF_BG) {
+				if (back != VTE_DEFAULT_BG) {
+					PangoColor bg;
 					gint bold_offset = _vte_draw_has_bold(terminal->pvt->draw,
 											VTE_DRAW_BOLD) ? 0 : bold;
+					vte_terminal_get_rgb_from_index(terminal, back, &bg);
 					_vte_draw_fill_rectangle (
 							terminal->pvt->draw,
 							x + i * column_width,
 							y,
 							(j - i) * column_width + bold_offset,
 							row_height,
-							&terminal->pvt->palette[back], VTE_DRAW_OPAQUE);
+							&bg, VTE_DRAW_OPAQUE);
 				}
 				/* We'll need to continue at the first cell which didn't
 				 * match the first one in this set. */
@@ -10536,13 +10433,15 @@ vte_terminal_draw_rows(VteTerminal *terminal,
 					j++;
 				}
 				vte_terminal_determine_colors(terminal, NULL, selected, &fore, &back);
-				if (back != VTE_DEF_BG) {
+				if (back != VTE_DEFAULT_BG) {
+					PangoColor bg;
+					vte_terminal_get_rgb_from_index(terminal, back, &bg);
 					_vte_draw_fill_rectangle (terminal->pvt->draw,
 								  x + i *column_width,
 								  y,
 								  (j - i)  * column_width,
 								  row_height,
-								  &terminal->pvt->palette[back], VTE_DRAW_OPAQUE);
+								  &bg, VTE_DRAW_OPAQUE);
 				}
 				i = j;
 			} while (i < end_column);
@@ -10664,21 +10563,10 @@ vte_terminal_draw_rows(VteTerminal *terminal,
 					 * in this chunk. */
 					selected = vte_cell_is_selected(terminal, j, row, NULL);
 					vte_terminal_determine_colors(terminal, cell, selected, &nfore, &nback);
-					/* Graphic characters must be drawn individually. */
+					/* Graphic characters must be drawn individually and thus break the
+                                         * run of characters with the same attributes. */
 					if (vte_unichar_is_local_graphic(cell->c)) {
-						if (vte_terminal_draw_graphic(terminal,
-									cell->c,
-									nfore, nback,
-									FALSE,
-									start_x + j * column_width,
-									y,
-									column_width,
-									cell->attr.columns,
-									row_height)) {
-
-							j += cell->attr.columns;
-							continue;
-						}
+						break;
 					}
 					if (nfore != fore) {
 						break;
@@ -10775,14 +10663,11 @@ fg_out:
 }
 
 static void
-vte_terminal_expand_region (VteTerminal *terminal, GdkRegion *region, const GdkRectangle *area)
+vte_terminal_expand_region (VteTerminal *terminal, cairo_region_t *region, const GdkRectangle *area)
 {
-	VteScreen *screen;
 	int width, height;
 	int row, col, row_stop, col_stop;
-	VteRegionRectangle rect;
-
-	screen = terminal->pvt->screen;
+	cairo_rectangle_int_t rect;
 
 	width = terminal->char_width;
 	height = terminal->char_height;
@@ -10809,7 +10694,7 @@ vte_terminal_expand_region (VteTerminal *terminal, GdkRegion *region, const GdkR
 	rect.height = (row_stop - row)*height;
 
 	/* the rect must be cell aligned to avoid overlapping XY bands */
-	gdk_region_union_with_rect(region, &rect);
+	cairo_region_union_rectangle(region, &rect);
 
 	_vte_debug_print (VTE_DEBUG_UPDATES,
 			"vte_terminal_expand_region"
@@ -10879,6 +10764,7 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
 	int row, drow, col;
 	long width, height, delta, cursor_width;
 	guint fore, back;
+	PangoColor bg;
 	int x, y;
 	gboolean blink, selected, focus;
 
@@ -10912,7 +10798,7 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
 
 	/* Draw the cursor. */
 	item.c = (cell && cell->c) ? cell->c : ' ';
-	item.columns = cell ? cell->attr.columns : 1;
+	item.columns = item.c == '\t' ? 1 : cell ? cell->attr.columns : 1;
 	item.x = col * width;
 	item.y = row * height;
 	cursor_width = item.columns * width;
@@ -10928,6 +10814,7 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
 	selected = vte_cell_is_selected(terminal, col, drow, NULL);
 
 	vte_terminal_determine_cursor_colors(terminal, cell, selected, &fore, &back);
+	vte_terminal_get_rgb_from_index(terminal, back, &bg);
 
 	x = item.x;
 	y = item.y;
@@ -10940,7 +10827,7 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
                         stem_width = (int) (((float) height) * terminal->pvt->cursor_aspect_ratio + 0.5);
                         stem_width = CLAMP (stem_width, VTE_LINE_WIDTH, cursor_width);
 		 	
-			vte_terminal_fill_rectangle(terminal, &terminal->pvt->palette[back],
+			vte_terminal_fill_rectangle(terminal, &bg,
 						     x, y, stem_width, height);
 			break;
                 }
@@ -10948,10 +10835,12 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
 		case VTE_CURSOR_SHAPE_UNDERLINE: {
                         int line_height;
 
-                        line_height = (int) (((float) width) * terminal->pvt->cursor_aspect_ratio + 0.5);
+			/* use height (not width) so underline and ibeam will
+			 * be equally visible */
+                        line_height = (int) (((float) height) * terminal->pvt->cursor_aspect_ratio + 0.5);
                         line_height = CLAMP (line_height, VTE_LINE_WIDTH, height);
 
-			vte_terminal_fill_rectangle(terminal, &terminal->pvt->palette[back],
+			vte_terminal_fill_rectangle(terminal, &bg,
 						     x, y + height - line_height,
 						     cursor_width, line_height);
 			break;
@@ -10962,7 +10851,7 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
 			if (focus) {
 				/* just reverse the character under the cursor */
 				vte_terminal_fill_rectangle (terminal,
-							     &terminal->pvt->palette[back],
+							     &bg,
 							     x, y,
 							     cursor_width, height);
 
@@ -11004,7 +10893,7 @@ vte_terminal_paint_cursor(VteTerminal *terminal)
 				/* draw a box around the character */
 
 				vte_terminal_draw_rectangle (terminal,
-							    &terminal->pvt->palette[back],
+							    &bg,
 							     x - VTE_LINE_WIDTH,
 							     y - VTE_LINE_WIDTH,
 							     cursor_width + 2*VTE_LINE_WIDTH,
@@ -11019,8 +10908,8 @@ static void
 vte_terminal_paint_im_preedit_string(VteTerminal *terminal)
 {
 	VteScreen *screen;
-	int row, drow, col, columns;
-	long width, height, ascent, descent, delta;
+	int row, col, columns;
+	long width, height, delta;
 	int i, len;
 	guint fore, back;
 
@@ -11033,11 +10922,8 @@ vte_terminal_paint_im_preedit_string(VteTerminal *terminal)
 	/* Keep local copies of rendering information. */
 	width = terminal->char_width;
 	height = terminal->char_height;
-	ascent = terminal->char_ascent;
-	descent = terminal->char_descent;
 	delta = screen->scroll_delta;
 
-	drow = screen->cursor_current.row;
 	row = screen->cursor_current.row - delta;
 
 	/* Find out how many columns the pre-edit string takes up. */
@@ -11072,8 +10958,8 @@ vte_terminal_paint_im_preedit_string(VteTerminal *terminal)
 				row * height + terminal->pvt->inner_border.top,
 				width * columns,
 				height);
-		fore = screen->defaults.attr.fore;
-		back = screen->defaults.attr.back;
+		fore = screen->color_defaults.attr.fore;
+		back = screen->color_defaults.attr.back;
 		vte_terminal_draw_cells_with_attributes(terminal,
 							items, len,
 							terminal->pvt->im_preedit_attrs,
@@ -11099,7 +10985,7 @@ vte_terminal_paint_im_preedit_string(VteTerminal *terminal)
 
 /* Draw the widget. */
 static void
-vte_terminal_paint(GtkWidget *widget, GdkRegion *region)
+vte_terminal_paint(GtkWidget *widget, cairo_region_t *region)
 {
 	VteTerminal *terminal;
 	GtkAllocation allocation;
@@ -11128,8 +11014,8 @@ vte_terminal_paint(GtkWidget *widget, GdkRegion *region)
 	}
 
 	_VTE_DEBUG_IF (VTE_DEBUG_UPDATES) {
-		VteRegionRectangle clip;
-		gdk_region_get_clipbox (region, &clip);
+		cairo_rectangle_int_t clip;
+		cairo_region_get_extents (region, &clip);
 		g_printerr ("vte_terminal_paint"
 				"	(%d,%d)x(%d,%d) pixels\n",
 				clip.x, clip.y, clip.width, clip.height);
@@ -11142,21 +11028,31 @@ vte_terminal_paint(GtkWidget *widget, GdkRegion *region)
 
 	/* Calculate the bounding rectangle. */
 	{
-		VteRegionRectangle *rectangles;
+		cairo_rectangle_int_t *rectangles;
 		gint n, n_rectangles;
-		gdk_region_get_rectangles (region, &rectangles, &n_rectangles);
+		n_rectangles = cairo_region_num_rectangles (region);
+		rectangles = g_new (cairo_rectangle_int_t, n_rectangles);
+		for (n = 0; n < n_rectangles; n++) {
+			cairo_region_get_rectangle (region, n, &rectangles[n]);
+		}
+
 		/* don't bother to enlarge an invalidate all */
 		if (!(n_rectangles == 1
 		      && rectangles[0].width == allocation.width
 		      && rectangles[0].height == allocation.height)) {
-			GdkRegion *rr = gdk_region_new ();
+			cairo_region_t *rr = cairo_region_create ();
 			/* convert pixels into whole cells */
 			for (n = 0; n < n_rectangles; n++) {
 				vte_terminal_expand_region (terminal, rr, rectangles + n);
 			}
 			g_free (rectangles);
-			gdk_region_get_rectangles (rr, &rectangles, &n_rectangles);
-			gdk_region_destroy (rr);
+
+			n_rectangles = cairo_region_num_rectangles (rr);
+			rectangles = g_new (cairo_rectangle_int_t, n_rectangles);
+			for (n = 0; n < n_rectangles; n++) {
+				cairo_region_get_rectangle (rr, n, &rectangles[n]);
+			}
+			cairo_region_destroy (rr);
 		}
 
 		/* and now paint them */
@@ -11175,8 +11071,6 @@ vte_terminal_paint(GtkWidget *widget, GdkRegion *region)
 }
 
 /* Handle an expose event by painting the exposed area. */
-#if GTK_CHECK_VERSION (2, 90, 8)
-
 static cairo_region_t *
 vte_cairo_get_clip_region (cairo_t *cr)
 {
@@ -11245,92 +11139,58 @@ vte_terminal_draw(GtkWidget *widget,
         return FALSE;
 }
 
-#else
-
-static gboolean
-vte_terminal_expose(GtkWidget *widget,
-                    GdkEventExpose *event)
-{
-	VteTerminal *terminal = VTE_TERMINAL (widget);
-	GtkAllocation allocation;
-
-	/* Beware the out of order events -
-	 *   do not even think about skipping exposes! */
-	_vte_debug_print (VTE_DEBUG_WORK, "+");
-	_vte_debug_print (VTE_DEBUG_EVENTS, "Expose (%d,%d)x(%d,%d)\n",
-			event->area.x, event->area.y,
-			event->area.width, event->area.height);
-	if (terminal->pvt->active != NULL &&
-			update_timeout_tag != 0 &&
-			!in_update_timeout) {
-		/* fix up a race condition where we schedule a delayed update
-		 * after an 'immediate' invalidate all */
-		if (terminal->pvt->invalidated_all &&
-				terminal->pvt->update_regions == NULL) {
-			terminal->pvt->invalidated_all = FALSE;
-		}
-		/* if we expect to redraw the widget soon,
-		 * just add this event to the list */
-		if (!terminal->pvt->invalidated_all) {
-			gtk_widget_get_allocation (widget, &allocation);
-			if (event->area.width >= allocation.width &&
-			    event->area.height >= allocation.height) {
-				_vte_invalidate_all (terminal);
-			} else {
-				terminal->pvt->update_regions =
-					g_slist_prepend (terminal->pvt->update_regions,
-							gdk_region_copy (event->region));
-			}
-		}
-	} else {
-		vte_terminal_paint(widget, event->region);
-		terminal->pvt->invalidated_all = FALSE;
-	}
-	return FALSE;
-}
-
-#endif /* GTK 3.0 */
-
 /* Handle a scroll event. */
 static gboolean
 vte_terminal_scroll(GtkWidget *widget, GdkEventScroll *event)
 {
 	GtkAdjustment *adj;
 	VteTerminal *terminal;
+	gdouble delta_x, delta_y;
 	gdouble v;
+	gint cnt, i;
 	int button;
 
 	terminal = VTE_TERMINAL(widget);
 
 	vte_terminal_read_modifiers (terminal, (GdkEvent*) event);
 
-	_VTE_DEBUG_IF(VTE_DEBUG_EVENTS)
-		switch (event->direction) {
-		case GDK_SCROLL_UP:
-			g_printerr("Scroll up.\n");
-			break;
-		case GDK_SCROLL_DOWN:
-			g_printerr("Scroll down.\n");
-			break;
-		default:
-			break;
-		}
+	switch (event->direction) {
+	case GDK_SCROLL_UP:
+		terminal->pvt->mouse_smooth_scroll_delta -= 1.;
+		_vte_debug_print(VTE_DEBUG_EVENTS, "Scroll up\n");
+		break;
+	case GDK_SCROLL_DOWN:
+		terminal->pvt->mouse_smooth_scroll_delta += 1.;
+		_vte_debug_print(VTE_DEBUG_EVENTS, "Scroll down\n");
+		break;
+#if GTK_CHECK_VERSION (3, 4, 0)
+	case GDK_SCROLL_SMOOTH:
+		gdk_event_get_scroll_deltas ((GdkEvent*) event, &delta_x, &delta_y);
+		terminal->pvt->mouse_smooth_scroll_delta += delta_y;
+		_vte_debug_print(VTE_DEBUG_EVENTS,
+				"Smooth scroll by %f, delta now at %f\n",
+				delta_y, terminal->pvt->mouse_smooth_scroll_delta);
+		break;
+#endif
+	default:
+		break;
+	}
 
 	/* If we're running a mouse-aware application, map the scroll event
 	 * to a button press on buttons four and five. */
 	if (terminal->pvt->mouse_tracking_mode) {
-		switch (event->direction) {
-		case GDK_SCROLL_UP:
-			button = 4;
-			break;
-		case GDK_SCROLL_DOWN:
-			button = 5;
-			break;
-		default:
-			button = 0;
-			break;
-		}
-		if (button != 0) {
+		cnt = terminal->pvt->mouse_smooth_scroll_delta;
+		if (cnt == 0)
+			return TRUE;
+		terminal->pvt->mouse_smooth_scroll_delta -= cnt;
+		_vte_debug_print(VTE_DEBUG_EVENTS,
+				"Scroll application by %d lines, smooth scroll delta set back to %f\n",
+				cnt, terminal->pvt->mouse_smooth_scroll_delta);
+
+		button = cnt > 0 ? 5 : 4;
+		if (cnt < 0)
+			cnt = -cnt;
+		for (i = 0; i < cnt; i++) {
 			/* Encode the parameters and send them to the app. */
 			vte_terminal_send_mouse_button_internal(terminal,
 								button,
@@ -11343,28 +11203,28 @@ vte_terminal_scroll(GtkWidget *widget, GdkEventScroll *event)
 
 	adj = terminal->adjustment;
 	v = MAX (1., ceil (gtk_adjustment_get_page_increment (adj) / 10.));
-	switch (event->direction) {
-	case GDK_SCROLL_UP:
-		v = -v;
-		break;
-	case GDK_SCROLL_DOWN:
-		break;
-	default:
-		return FALSE;
-	}
+	_vte_debug_print(VTE_DEBUG_EVENTS,
+			"Scroll speed is %d lines per non-smooth scroll unit\n",
+			(int) v);
+	cnt = v * terminal->pvt->mouse_smooth_scroll_delta;
+	if (cnt == 0)
+		return TRUE;
+	terminal->pvt->mouse_smooth_scroll_delta -= cnt / v;
+	_vte_debug_print(VTE_DEBUG_EVENTS,
+			"Scroll by %d lines, smooth scroll delta set back to %f\n",
+			cnt, terminal->pvt->mouse_smooth_scroll_delta);
 
-	if (terminal->pvt->screen == &terminal->pvt->alternate_screen ||
-		terminal->pvt->normal_screen.scrolling_restricted) {
+	if (terminal->pvt->screen == &terminal->pvt->alternate_screen &&
+            terminal->pvt->alternate_screen_scroll) {
 		char *normal;
 		gssize normal_length;
 		const gchar *special;
-		gint i, cnt = v;
 
 		/* In the alternate screen there is no scrolling,
 		 * so fake a few cursor keystrokes. */
 
 		_vte_keymap_map (
-				cnt > 0 ? GDK_KEY (Down) : GDK_KEY (Up),
+				cnt > 0 ? GDK_KEY_Down : GDK_KEY_Up,
 				terminal->pvt->modifiers,
 				terminal->pvt->sun_fkey_mode,
 				terminal->pvt->hp_fkey_mode,
@@ -11387,8 +11247,8 @@ vte_terminal_scroll(GtkWidget *widget, GdkEventScroll *event)
 		g_free (normal);
 	} else {
 		/* Perform a history scroll. */
-		v += terminal->pvt->screen->scroll_delta;
-		vte_terminal_queue_adjustment_value_changed_clamped (terminal, v);
+		cnt += terminal->pvt->screen->scroll_delta;
+		vte_terminal_queue_adjustment_value_changed_clamped (terminal, cnt);
 	}
 
 	return TRUE;
@@ -11399,30 +11259,17 @@ vte_terminal_scroll(GtkWidget *widget, GdkEventScroll *event)
 static AtkObject *
 vte_terminal_get_accessible(GtkWidget *widget)
 {
-	VteTerminal *terminal;
 	static gboolean first_time = TRUE;
 	static GQuark quark_accessible_object;
-
-	terminal = VTE_TERMINAL(widget);
+	AtkRegistry *default_registry;
+	AtkObjectFactory *factory;
+	AtkObject *accessible;
 
 	if (first_time) {
-		AtkObjectFactory *factory;
 		AtkRegistry *registry;
-		GType derived_type;
-		GType derived_atk_type;
-
-		/*
-		 * Figure out whether accessibility is enabled by looking at the
-		 * type of the accessible object which would be created for
-		 * the parent type of VteTerminal.
-		 */
-		derived_type = g_type_parent (VTE_TYPE_TERMINAL);
 
 		registry = atk_get_default_registry ();
-		factory = atk_registry_get_factory (registry, derived_type);
 
-		derived_atk_type = atk_object_factory_get_accessible_type (
-			factory);
 		atk_registry_set_factory_type (registry, VTE_TYPE_TERMINAL,
 			vte_terminal_accessible_factory_get_type ());
 		quark_accessible_object = g_quark_from_static_string (
@@ -11430,9 +11277,7 @@ vte_terminal_get_accessible(GtkWidget *widget)
 		first_time = FALSE;
 	}
 
-	AtkRegistry *default_registry = atk_get_default_registry ();
-	AtkObjectFactory *factory;
-	AtkObject *accessible;
+	default_registry = atk_get_default_registry ();
 	accessible = g_object_get_qdata (G_OBJECT (widget),
 		quark_accessible_object);
 	if (accessible)
@@ -11455,7 +11300,6 @@ vte_terminal_get_property (GObject *object,
 
 	switch (prop_id)
 	{
-#if GTK_CHECK_VERSION (2, 91, 2)
                 case PROP_HADJUSTMENT:
                         g_value_set_object (value, pvt->hadjustment);
                         break;
@@ -11468,7 +11312,6 @@ vte_terminal_get_property (GObject *object,
                 case PROP_VSCROLL_POLICY:
                         g_value_set_enum (value, pvt->vscroll_policy);
                         break;
-#endif
                 case PROP_ALLOW_BOLD:
                         g_value_set_boolean (value, vte_terminal_get_allow_bold (terminal));
                         break;
@@ -11532,6 +11375,9 @@ vte_terminal_get_property (GObject *object,
                 case PROP_PTY_OBJECT:
                         g_value_set_object (value, vte_terminal_get_pty_object(terminal));
                         break;
+                case PROP_REWRAP_ON_RESIZE:
+                        g_value_set_boolean (value, vte_terminal_get_rewrap_on_resize (terminal));
+                        break;
                 case PROP_SCROLL_BACKGROUND:
                         g_value_set_boolean (value, pvt->scroll_background);
                         break;
@@ -11571,7 +11417,6 @@ vte_terminal_set_property (GObject *object,
 
 	switch (prop_id)
 	{
-#if GTK_CHECK_VERSION (2, 91, 2)
                 case PROP_HADJUSTMENT:
                         vte_terminal_set_hadjustment (terminal, g_value_get_object (value));
                         break;
@@ -11586,7 +11431,6 @@ vte_terminal_set_property (GObject *object,
                         pvt->vscroll_policy = g_value_get_enum (value);
                         gtk_widget_queue_resize_no_redraw (GTK_WIDGET (terminal));
                         break;
-#endif
                 case PROP_ALLOW_BOLD:
                         vte_terminal_set_allow_bold (terminal, g_value_get_boolean (value));
                         break;
@@ -11594,22 +11438,34 @@ vte_terminal_set_property (GObject *object,
                         vte_terminal_set_audible_bell (terminal, g_value_get_boolean (value));
                         break;
                 case PROP_BACKGROUND_IMAGE_FILE:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_background_image_file (terminal, g_value_get_string (value));
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_BACKGROUND_IMAGE_PIXBUF:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_background_image (terminal, g_value_get_object (value));
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_BACKGROUND_OPACITY:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_opacity (terminal, g_value_get_double (value) * (double) G_MAXUINT16);
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_BACKGROUND_SATURATION:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_background_saturation (terminal, g_value_get_double (value));
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_BACKGROUND_TINT_COLOR:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_background_tint_color (terminal, g_value_get_boxed (value));
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_BACKGROUND_TRANSPARENT:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_background_transparent (terminal, g_value_get_boolean (value));
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_BACKSPACE_BINDING:
                         vte_terminal_set_backspace_binding (terminal, g_value_get_enum (value));
@@ -11641,8 +11497,13 @@ vte_terminal_set_property (GObject *object,
                 case PROP_PTY_OBJECT:
                         vte_terminal_set_pty_object (terminal, g_value_get_object (value));
                         break;
+                case PROP_REWRAP_ON_RESIZE:
+                        vte_terminal_set_rewrap_on_resize (terminal, g_value_get_boolean (value));
+                        break;
                 case PROP_SCROLL_BACKGROUND:
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
                         vte_terminal_set_scroll_background (terminal, g_value_get_boolean (value));
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
                         break;
                 case PROP_SCROLLBACK_LINES:
                         vte_terminal_set_scrollback_lines (terminal, g_value_get_uint (value));
@@ -11723,11 +11584,7 @@ vte_terminal_class_init(VteTerminalClass *klass)
         gobject_class->set_property = vte_terminal_set_property;
 	widget_class->realize = vte_terminal_realize;
 	widget_class->scroll_event = vte_terminal_scroll;
-#if GTK_CHECK_VERSION (2, 90, 8)
         widget_class->draw = vte_terminal_draw;
-#else
-	widget_class->expose_event = vte_terminal_expose;
-#endif
 	widget_class->key_press_event = vte_terminal_key_press;
 	widget_class->key_release_event = vte_terminal_key_release;
 	widget_class->button_press_event = vte_terminal_button_press;
@@ -11740,12 +11597,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
 	widget_class->visibility_notify_event = vte_terminal_visibility_notify;
 	widget_class->unrealize = vte_terminal_unrealize;
 	widget_class->style_updated = vte_terminal_style_updated;
-#if GTK_CHECK_VERSION (2, 91, 0)
 	widget_class->get_preferred_width = vte_terminal_get_preferred_width;
 	widget_class->get_preferred_height = vte_terminal_get_preferred_height;
-#else
-	widget_class->size_request = vte_terminal_size_request;
-#endif
 	widget_class->size_allocate = vte_terminal_size_allocate;
 	widget_class->get_accessible = vte_terminal_get_accessible;
         widget_class->screen_changed = vte_terminal_screen_changed;
@@ -11787,48 +11640,13 @@ vte_terminal_class_init(VteTerminalClass *klass)
 
         klass->beep = NULL;
 
-#if GTK_CHECK_VERSION (2, 91, 2)
         /* GtkScrollable interface properties */
         g_object_class_override_property (gobject_class, PROP_HADJUSTMENT, "hadjustment");
         g_object_class_override_property (gobject_class, PROP_VADJUSTMENT, "vadjustment");
         g_object_class_override_property (gobject_class, PROP_HSCROLL_POLICY, "hscroll-policy");
         g_object_class_override_property (gobject_class, PROP_VSCROLL_POLICY, "vscroll-policy");
 
-#else
-
-        klass->set_scroll_adjustments = vte_terminal_set_scroll_adjustments;
-
-        /**
-         * VteTerminal::set-scroll-adjustments:
-         * @vteterminal: the object which received the signal
-         * @horizontal: (allow-none): the horizontal #GtkAdjustment (unused in #VteTerminal)
-         * @vertical: (allow-none): the vertical #GtkAdjustment
-         *
-         * Set the scroll adjustments for the terminal. Usually scrolled containers
-         * like #GtkScrolledWindow will emit this signal to connect two instances
-         * of #GtkScrollbar to the scroll directions of the #VteTerminal.
-         *
-         * Since: 0.17.1
-         */
-	widget_class->set_scroll_adjustments_signal =
-		g_signal_new(I_("set-scroll-adjustments"),
-			     G_TYPE_FROM_CLASS (klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET (VteTerminalClass, set_scroll_adjustments),
-			     NULL, NULL,
-			     _vte_marshal_VOID__OBJECT_OBJECT,
-			     G_TYPE_NONE, 2,
-			     GTK_TYPE_ADJUSTMENT, GTK_TYPE_ADJUSTMENT);
-
-#endif
-
 	/* Register some signals of our own. */
-
-#if GTK_CHECK_VERSION (2, 99, 0)
-#define OBSOLETE_SIGNAL(str)
-#else
-#define OBSOLETE_SIGNAL(str) str
-#endif
 
         /**
          * VteTerminal::eof:
@@ -11838,15 +11656,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * is running in the terminal.  This signal is frequently (but not
          * always) emitted with a #VteTerminal::child-exited signal.
          */
-        OBSOLETE_SIGNAL (klass->eof_signal =)
-                g_signal_new(I_("eof"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, eof),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("eof"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, eof),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::child-exited:
@@ -11855,15 +11672,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * This signal is emitted when the terminal detects that a child started
          * using vte_terminal_fork_command() has exited.
          */
-        OBSOLETE_SIGNAL (klass->child_exited_signal =)
-                g_signal_new(I_("child-exited"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, child_exited),
-			     NULL,
-			     NULL,
-			     g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("child-exited"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, child_exited),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::window-title-changed:
@@ -11871,15 +11687,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted when the terminal's %window_title field is modified.
          */
-        OBSOLETE_SIGNAL (klass->window_title_changed_signal =)
-                g_signal_new(I_("window-title-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, window_title_changed),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("window-title-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, window_title_changed),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::icon-title-changed:
@@ -11887,16 +11702,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted when the terminal's %icon_title field is modified.
          */
-        OBSOLETE_SIGNAL (klass->icon_title_changed_signal =)
-                g_signal_new(I_("icon-title-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, icon_title_changed),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
-
+	g_signal_new(I_("icon-title-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, icon_title_changed),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::current-directory-uri-changed:
@@ -11906,14 +11719,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Since: 0.34
          */
-                g_signal_new(I_("current-directory-uri-changed"),
-                             G_OBJECT_CLASS_TYPE(klass),
-                             G_SIGNAL_RUN_LAST,
-                             0,
-                             NULL,
-                             NULL,
-                             g_cclosure_marshal_VOID__VOID,
-                             G_TYPE_NONE, 0);
+	g_signal_new(I_("current-directory-uri-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     0,
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::current-file-uri-changed:
@@ -11923,14 +11736,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Since: 0.34
          */
-                g_signal_new(I_("current-file-uri-changed"),
-                             G_OBJECT_CLASS_TYPE(klass),
-                             G_SIGNAL_RUN_LAST,
-                             0,
-                             NULL,
-                             NULL,
-                             g_cclosure_marshal_VOID__VOID,
-                             G_TYPE_NONE, 0);
+	g_signal_new(I_("current-file-uri-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     0,
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::encoding-changed:
@@ -11940,15 +11753,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * as a result of receiving a control sequence which toggled between the
          * local and UTF-8 encodings, or at the parent application's request.
          */
-        OBSOLETE_SIGNAL (klass->encoding_changed_signal =)
-                g_signal_new(I_("encoding-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, encoding_changed),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("encoding-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, encoding_changed),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::commit:
@@ -11960,15 +11772,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * prepares to send it to the child process.  The signal is emitted even
          * when there is no child process.
          */
-        OBSOLETE_SIGNAL (klass->commit_signal =)
-                g_signal_new(I_("commit"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, commit),
-			     NULL,
-			     NULL,
-			     _vte_marshal_VOID__STRING_UINT,
-			     G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_UINT);
+	g_signal_new(I_("commit"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, commit),
+		     NULL,
+		     NULL,
+		     _vte_marshal_VOID__STRING_UINT,
+		     G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_UINT);
 
         /**
          * VteTerminal::emulation-changed:
@@ -11977,15 +11788,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * Emitted whenever the terminal's emulation changes, only possible at
          * the parent application's request.
          */
-        OBSOLETE_SIGNAL (klass->emulation_changed_signal =)
-                g_signal_new(I_("emulation-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, emulation_changed),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("emulation-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, emulation_changed),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::char-size-changed:
@@ -11996,15 +11806,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * Emitted whenever selection of a new font causes the values of the
          * %char_width or %char_height fields to change.
          */
-        OBSOLETE_SIGNAL (klass->char_size_changed_signal =)
-                g_signal_new(I_("char-size-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, char_size_changed),
-			     NULL,
-			     NULL,
-			     _vte_marshal_VOID__UINT_UINT,
-			     G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+	g_signal_new(I_("char-size-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, char_size_changed),
+		     NULL,
+		     NULL,
+		     _vte_marshal_VOID__UINT_UINT,
+		     G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
 
         /**
          * VteTerminal::selection-changed:
@@ -12012,15 +11821,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted whenever the contents of terminal's selection changes.
          */
-        OBSOLETE_SIGNAL (klass->selection_changed_signal =)
-                g_signal_new (I_("selection-changed"),
-			      G_OBJECT_CLASS_TYPE(klass),
-			      G_SIGNAL_RUN_LAST,
-			      G_STRUCT_OFFSET(VteTerminalClass, selection_changed),
-			      NULL,
-			      NULL,
-                              g_cclosure_marshal_VOID__VOID,
-			      G_TYPE_NONE, 0);
+	g_signal_new (I_("selection-changed"),
+		      G_OBJECT_CLASS_TYPE(klass),
+		      G_SIGNAL_RUN_LAST,
+		      G_STRUCT_OFFSET(VteTerminalClass, selection_changed),
+		      NULL,
+		      NULL,
+		      g_cclosure_marshal_VOID__VOID,
+		      G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::contents-changed:
@@ -12029,15 +11837,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * Emitted whenever the visible appearance of the terminal has changed.
          * Used primarily by #VteTerminalAccessible.
          */
-        OBSOLETE_SIGNAL (klass->contents_changed_signal =)
-                g_signal_new(I_("contents-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, contents_changed),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("contents-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, contents_changed),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::cursor-moved:
@@ -12046,15 +11853,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * Emitted whenever the cursor moves to a new character cell.  Used
          * primarily by #VteTerminalAccessible.
          */
-        OBSOLETE_SIGNAL (klass->cursor_moved_signal =)
-                g_signal_new(I_("cursor-moved"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, cursor_moved),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("cursor-moved"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, cursor_moved),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::deiconify-window:
@@ -12062,15 +11868,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->deiconify_window_signal =)
-                g_signal_new(I_("deiconify-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, deiconify_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("deiconify-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, deiconify_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::iconify-window:
@@ -12078,15 +11883,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->iconify_window_signal =)
-                g_signal_new(I_("iconify-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, iconify_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("iconify-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, iconify_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::raise-window:
@@ -12094,15 +11898,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->raise_window_signal =)
-                g_signal_new(I_("raise-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, raise_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("raise-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, raise_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::lower-window:
@@ -12110,15 +11913,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->lower_window_signal =)
-                g_signal_new(I_("lower-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, lower_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("lower-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, lower_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::refresh-window:
@@ -12126,15 +11928,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->refresh_window_signal =)
-                g_signal_new(I_("refresh-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, refresh_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("refresh-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, refresh_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::restore-window:
@@ -12142,15 +11943,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->restore_window_signal =)
-                g_signal_new(I_("restore-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, restore_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("restore-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, restore_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::maximize-window:
@@ -12158,15 +11958,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->maximize_window_signal =)
-                g_signal_new(I_("maximize-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, maximize_window),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("maximize-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, maximize_window),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::resize-window:
@@ -12176,15 +11975,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->resize_window_signal =)
-                g_signal_new(I_("resize-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, resize_window),
-			     NULL,
-			     NULL,
-			     _vte_marshal_VOID__UINT_UINT,
-			     G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+	g_signal_new(I_("resize-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, resize_window),
+		     NULL,
+		     NULL,
+		     _vte_marshal_VOID__UINT_UINT,
+		     G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
 
         /**
          * VteTerminal::move-window:
@@ -12194,15 +11992,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted at the child application's request.
          */
-        OBSOLETE_SIGNAL (klass->move_window_signal =)
-                g_signal_new(I_("move-window"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, move_window),
-			     NULL,
-			     NULL,
-			     _vte_marshal_VOID__UINT_UINT,
-			     G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+	g_signal_new(I_("move-window"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, move_window),
+		     NULL,
+		     NULL,
+		     _vte_marshal_VOID__UINT_UINT,
+		     G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
 
         /**
          * VteTerminal::status-line-changed:
@@ -12211,15 +12008,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * Emitted whenever the contents of the status line are modified or
          * cleared.
          */
-        OBSOLETE_SIGNAL (klass->status_line_changed_signal =)
-                g_signal_new(I_("status-line-changed"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, status_line_changed),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("status-line-changed"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, status_line_changed),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::increase-font-size:
@@ -12227,15 +12023,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted when the user hits the '+' key while holding the Control key.
          */
-        OBSOLETE_SIGNAL (klass->increase_font_size_signal =)
-                g_signal_new(I_("increase-font-size"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, increase_font_size),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("increase-font-size"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, increase_font_size),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::decrease-font-size:
@@ -12243,15 +12038,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          *
          * Emitted when the user hits the '-' key while holding the Control key.
          */
-        OBSOLETE_SIGNAL (klass->decrease_font_size_signal =)
-                g_signal_new(I_("decrease-font-size"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, decrease_font_size),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("decrease-font-size"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, decrease_font_size),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::text-modified:
@@ -12261,15 +12055,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * its accessibility peer. May not be emitted under certain
          * circumstances.
          */
-        OBSOLETE_SIGNAL (klass->text_modified_signal =)
-                g_signal_new(I_("text-modified"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, text_modified),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("text-modified"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, text_modified),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::text-inserted:
@@ -12279,15 +12072,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * its accessibility peer. May not be emitted under certain
          * circumstances.
          */
-        OBSOLETE_SIGNAL (klass->text_inserted_signal =)
-                g_signal_new(I_("text-inserted"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, text_inserted),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("text-inserted"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, text_inserted),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::text-deleted:
@@ -12297,15 +12089,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * its accessibility peer. May not be emitted under certain
          * circumstances.
          */
-        OBSOLETE_SIGNAL (klass->text_deleted_signal =)
-                g_signal_new(I_("text-deleted"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, text_deleted),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__VOID,
-			     G_TYPE_NONE, 0);
+	g_signal_new(I_("text-deleted"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, text_deleted),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__VOID,
+		     G_TYPE_NONE, 0);
 
         /**
          * VteTerminal::text-scrolled:
@@ -12316,17 +12107,14 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * its accessibility peer. May not be emitted under certain
          * circumstances.
          */
-       OBSOLETE_SIGNAL (klass->text_scrolled_signal =)
-                g_signal_new(I_("text-scrolled"),
-			     G_OBJECT_CLASS_TYPE(klass),
-			     G_SIGNAL_RUN_LAST,
-			     G_STRUCT_OFFSET(VteTerminalClass, text_scrolled),
-			     NULL,
-			     NULL,
-                             g_cclosure_marshal_VOID__INT,
-			     G_TYPE_NONE, 1, G_TYPE_INT);
-
-#undef OBSOLETE_SIGNAL
+	g_signal_new(I_("text-scrolled"),
+		     G_OBJECT_CLASS_TYPE(klass),
+		     G_SIGNAL_RUN_LAST,
+		     G_STRUCT_OFFSET(VteTerminalClass, text_scrolled),
+		     NULL,
+		     NULL,
+		     g_cclosure_marshal_VOID__INT,
+		     G_TYPE_NONE, 1, G_TYPE_INT);
 
         /**
          * VteTerminal::copy-clipboard:
@@ -12415,6 +12203,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * in-memory copy of the image before applying it to the terminal.
          * 
          * Since: 0.20
+         *
+         * Deprecated: 0.34.8
          */
         g_object_class_install_property
                 (gobject_class,
@@ -12434,6 +12224,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * in-memory copy of the image before applying it to the terminal.
          * 
          * Since: 0.20
+         *
+         * Deprecated: 0.34.8
          */
         g_object_class_install_property
                 (gobject_class,
@@ -12449,6 +12241,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * transparent and 1.0 means completely opaque.
          *
          * Since: 0.20
+         *
+         * Deprecated: 0.34.8
          */
         g_object_class_install_property
                 (gobject_class,
@@ -12469,6 +12263,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * image (or snapshot of the root window) and modify its pixel values.
          *
          * Since: 0.20
+         *
+         * Deprecated: 0.34.8
          */
         g_object_class_install_property
                 (gobject_class,
@@ -12491,6 +12287,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * is black.
          * 
          * Since: 0.20
+         *
+         * Deprecated: 0.34.8
          */
         g_object_class_install_property
                 (gobject_class,
@@ -12510,6 +12308,8 @@ vte_terminal_class_init(VteTerminalClass *klass)
          * set a RGBA colourmap on the toplevel window, so you get real transparency.
          *
          * Since: 0.20
+         *
+         * Deprecated: 0.34.8
          */
         g_object_class_install_property
                 (gobject_class,
@@ -12695,6 +12495,21 @@ vte_terminal_class_init(VteTerminalClass *klass)
                                       G_PARAM_STATIC_STRINGS));
 
         /**
+         * VteTerminal:rewrap-on-resize:
+         *
+         * Controls whether or not the terminal will rewrap its contents, including
+         * the scrollback buffer, whenever the terminal's width changes.
+         * 
+         * Since: 0.36
+         */
+        g_object_class_install_property
+                (gobject_class,
+                 PROP_REWRAP_ON_RESIZE,
+                 g_param_spec_boolean ("rewrap-on-resize", NULL, NULL,
+                                       TRUE,
+                                       G_PARAM_READWRITE | STATIC_PARAMS));
+
+        /**
          * VteTerminal:scroll-background:
          *
          * Controls whether or not the terminal will scroll the background image (if
@@ -12854,25 +12669,20 @@ vte_terminal_class_init(VteTerminalClass *klass)
                                      G_PARAM_READABLE |
                                      G_PARAM_STATIC_STRINGS));
 
-#if !GTK_CHECK_VERSION (2,99, 0)
-        /* Now install the default style */
-        gtk_rc_parse_string("style \"vte-default-style\" {\n"
-                              "VteTerminal::inner-border = { 1, 1, 1, 1 }\n"
-                            "}\n"
-                            "class \"VteTerminal\" style : gtk \"vte-default-style\"\n");
-#endif
-
         /* Keybindings */
 	binding_set = gtk_binding_set_by_class(klass);
 
 	/* Bind Copy, Paste, Cut keys */
-	gtk_binding_entry_add_signal(binding_set, GDK_KEY (F16), 0, "copy-clipboard",0);
-	gtk_binding_entry_add_signal(binding_set, GDK_KEY (F18), 0, "paste-clipboard", 0);
-	gtk_binding_entry_add_signal(binding_set, GDK_KEY (F20), 0, "copy-clipboard",0);
+	gtk_binding_entry_add_signal(binding_set, GDK_KEY_F16, 0, "copy-clipboard",0);
+	gtk_binding_entry_add_signal(binding_set, GDK_KEY_F18, 0, "paste-clipboard", 0);
+	gtk_binding_entry_add_signal(binding_set, GDK_KEY_F20, 0, "copy-clipboard",0);
+
+	/* Disable GTK's builtin handler for Ctrl+F1, see bug 726438 */
+	binding_set = gtk_binding_set_by_class(vte_terminal_parent_class);
+	gtk_binding_entry_skip(binding_set, GDK_KEY_F1, GDK_CONTROL_MASK);
 
 	process_timer = g_timer_new ();
 
-#if GTK_CHECK_VERSION (2, 99, 0)
         klass->priv = G_TYPE_CLASS_GET_PRIVATE (klass, VTE_TYPE_TERMINAL, VteTerminalClassPrivate);
 
         klass->priv->style_provider = GTK_STYLE_PROVIDER (gtk_css_provider_new ());
@@ -12881,7 +12691,6 @@ vte_terminal_class_init(VteTerminalClass *klass)
                                            "-VteTerminal-inner-border: 1;\n"
                                          "}\n",
                                          -1, NULL);
-#endif /* GTK 3.0 */
 }
 
 /**
@@ -13026,6 +12835,8 @@ vte_terminal_get_allow_bold(VteTerminal *terminal)
  * one is set) when the text in the window must be scrolled.
  *
  * Since: 0.11
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_scroll_background(VteTerminal *terminal, gboolean scroll)
@@ -13087,6 +12898,63 @@ vte_terminal_set_scroll_on_keystroke(VteTerminal *terminal, gboolean scroll)
 	pvt->scroll_on_keystroke = scroll;
 
         g_object_notify (G_OBJECT (terminal), "scroll-on-keystroke");
+}
+
+/**
+ * vte_terminal_set_alternate_screen_scroll:
+ * @terminal: a #VteTerminal
+ * @scroll:
+ *
+ * Since: 0.34.9
+ * Deprecated: 0.34.9: This function does nothing.
+ */
+void
+vte_terminal_set_alternate_screen_scroll(VteTerminal *terminal, gboolean scroll)
+{
+        /* We just want to export this symbol for compatibility */
+}
+
+/**
+ * vte_terminal_set_rewrap_on_resize:
+ * @terminal: a #VteTerminal
+ * @rewrap: %TRUE if the terminal should rewrap on resize
+ *
+ * Controls whether or not the terminal will rewrap its contents, including
+ * the scrollback history, whenever the terminal's width changes.
+ *
+ * Since: 0.36
+ */
+void
+vte_terminal_set_rewrap_on_resize(VteTerminal *terminal, gboolean rewrap)
+{
+        VteTerminalPrivate *pvt;
+
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+        pvt = terminal->pvt;
+
+        if (rewrap == pvt->rewrap_on_resize)
+                return;
+
+        pvt->rewrap_on_resize = rewrap;
+        g_object_notify (G_OBJECT (terminal), "rewrap-on-resize");
+}
+
+/**
+ * vte_terminal_get_rewrap_on_resize:
+ * @terminal: a #VteTerminal
+ *
+ * Checks whether or not the terminal will rewrap its contents upon resize.
+ *
+ * Returns: %TRUE if rewrapping is enabled, %FALSE if not
+ *
+ * Since: 0.36
+ */
+gboolean
+vte_terminal_get_rewrap_on_resize(VteTerminal *terminal)
+{
+	g_return_val_if_fail(VTE_IS_TERMINAL(terminal), FALSE);
+	return terminal->pvt->rewrap_on_resize;
 }
 
 static void
@@ -13179,6 +13047,8 @@ vte_terminal_paste_primary(VteTerminal *terminal)
  * Appends menu items for various input methods to the given menu.  The
  * user can select one of these items to modify the input method used by
  * the terminal.
+ *
+ * Deprecated: 0.34.6
  */
 void
 vte_terminal_im_append_menuitems(VteTerminal *terminal, GtkMenuShell *menushell)
@@ -13211,7 +13081,7 @@ vte_terminal_background_update(VteTerminal *terminal)
 	_vte_debug_print(VTE_DEBUG_MISC|VTE_DEBUG_EVENTS,
 			"Updating background image.\n");
 
-	entry = &terminal->pvt->palette[VTE_DEF_BG];
+	entry = _vte_terminal_get_color(terminal, VTE_DEFAULT_BG);
 	_vte_debug_print(VTE_DEBUG_BG,
 			 "Setting background color to (%d, %d, %d, %d).\n",
 			 entry->red, entry->green, entry->blue,
@@ -13307,6 +13177,8 @@ vte_terminal_queue_background_update(VteTerminal *terminal)
  * than 1.0, the terminal will adjust the colors of the image before drawing
  * the image.  To do so, the terminal will create a copy of the background
  * image (or snapshot of the root window) and modify its pixel values.
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_background_saturation(VteTerminal *terminal, double saturation)
@@ -13349,6 +13221,8 @@ vte_terminal_set_background_saturation(VteTerminal *terminal, double saturation)
  * is black.
  *
  * Since: 0.11
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_background_tint_color(VteTerminal *terminal,
@@ -13390,6 +13264,8 @@ vte_terminal_set_background_tint_color(VteTerminal *terminal,
  * Sets the terminal's background image to the pixmap stored in the root
  * window, adjusted so that if there are no windows below your application,
  * the widget will appear to be transparent.
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_background_transparent(VteTerminal *terminal,
@@ -13427,6 +13303,8 @@ vte_terminal_set_background_transparent(VteTerminal *terminal,
  * widget's entire visible area. If specified by
  * vte_terminal_set_background_saturation(), the terminal will tint its
  * in-memory copy of the image before applying it to the terminal.
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_background_image(VteTerminal *terminal, GdkPixbuf *image)
@@ -13486,6 +13364,8 @@ vte_terminal_set_background_image(VteTerminal *terminal, GdkPixbuf *image)
  * Sets a background image for the widget.  If specified by
  * vte_terminal_set_background_saturation(), the terminal will tint its
  * in-memory copy of the image before applying it to the terminal.
+ *
+ * Deprecated: 0.34.8
  */
 void
 vte_terminal_set_background_image_file(VteTerminal *terminal, const char *path)
@@ -13765,7 +13645,10 @@ vte_terminal_set_scrollback_lines(VteTerminal *terminal, glong lines)
 		}
 	}
 
-	/* Adjust the scrollbars to the new locations. */
+	/* Adjust the scrollbar to the new location. */
+	/* Hack: force a change in scroll_delta even if the value remains, so that
+	   vte_term_q_adj_val_changed() doesn't shortcut to no-op, see bug 676075. */
+	terminal->pvt->screen->scroll_delta = -1;
 	vte_terminal_queue_adjustment_value_changed (terminal, scroll_delta);
 	_vte_terminal_adjust_adjustments_full (terminal);
 
@@ -13986,6 +13869,7 @@ vte_terminal_reset(VteTerminal *terminal,
                    gboolean clear_history)
 {
         VteTerminalPrivate *pvt;
+        int i;
 
 	g_return_if_fail(VTE_IS_TERMINAL(terminal));
 
@@ -13993,13 +13877,7 @@ vte_terminal_reset(VteTerminal *terminal,
 
         g_object_freeze_notify(G_OBJECT(terminal));
 
-	/* Stop processing any of the data we've got backed up. */
-	vte_terminal_stop_processing (terminal);
-
-	/* Clear the input and output buffers. */
-	_vte_incoming_chunks_release (pvt->incoming);
-	pvt->incoming = NULL;
-	g_array_set_size(pvt->pending, 0);
+	/* Clear the output buffer. */
 	_vte_buffer_clear(pvt->outgoing);
 	/* Reset charset substitution state. */
 	_vte_iso2022_state_free(pvt->iso2022);
@@ -14017,19 +13895,20 @@ vte_terminal_reset(VteTerminal *terminal,
 	pvt->vt220_fkey_mode = FALSE;
 	/* Enable meta-sends-escape. */
 	pvt->meta_sends_escape = TRUE;
-	/* Disable smooth scroll. */
-	pvt->smooth_scroll = FALSE;
 	/* Disable margin bell. */
 	pvt->margin_bell = FALSE;
 	/* Enable iso2022/NRC processing. */
 	pvt->nrc_mode = TRUE;
+        /* Disable DECCOLM mode. */
+        pvt->deccolm_mode = FALSE;
 	/* Reset saved settings. */
 	if (pvt->dec_saved != NULL) {
 		g_hash_table_destroy(pvt->dec_saved);
 		pvt->dec_saved = g_hash_table_new(NULL, NULL);
 	}
-	/* Reset the color palette. */
-	/* vte_terminal_set_default_colors(terminal); */
+	/* Reset the color palette. Only the 256 indexed colors, not the special ones, as per xterm. */
+	for (i = 0; i < 256; i++)
+		terminal->pvt->palette[i].sources[VTE_COLOR_SOURCE_ESCAPE].is_set = FALSE;
 	/* Reset the default attributes.  Reset the alternate attribute because
 	 * it's not a real attribute, but we need to treat it as one here. */
 	pvt->screen = &pvt->alternate_screen;
@@ -14043,8 +13922,10 @@ vte_terminal_reset(VteTerminal *terminal,
 	if (clear_history) {
 		_vte_ring_fini(pvt->normal_screen.row_data);
 		_vte_ring_init(pvt->normal_screen.row_data, pvt->scrollback_lines);
+                _vte_ring_set_visible_rows_hint(pvt->normal_screen.row_data, terminal->row_count);
 		_vte_ring_fini(pvt->alternate_screen.row_data);
 		_vte_ring_init(pvt->alternate_screen.row_data, terminal->row_count);
+                _vte_ring_set_visible_rows_hint(pvt->alternate_screen.row_data, terminal->row_count);
 		pvt->normal_screen.cursor_saved.row = 0;
 		pvt->normal_screen.cursor_saved.col = 0;
 		pvt->normal_screen.cursor_current.row = 0;
@@ -14057,6 +13938,11 @@ vte_terminal_reset(VteTerminal *terminal,
 		pvt->alternate_screen.cursor_current.col = 0;
 		pvt->alternate_screen.scroll_delta = 0;
 		pvt->alternate_screen.insert_delta = 0;
+                /* Adjust the scrollbar to the new location. */
+                /* Hack: force a change in scroll_delta even if the value remains, so that
+                   vte_term_q_adj_val_changed() doesn't shortcut to no-op, see bug 730599. */
+                pvt->screen->scroll_delta = -1;
+                vte_terminal_queue_adjustment_value_changed (terminal, 0);
 		_vte_terminal_adjust_adjustments_full (terminal);
 	}
 	/* Clear the status lines. */
@@ -14086,15 +13972,15 @@ vte_terminal_reset(VteTerminal *terminal,
 	pvt->normal_screen.linefeed_mode = FALSE;
 	pvt->normal_screen.origin_mode = FALSE;
 	pvt->normal_screen.reverse_mode = FALSE;
-	pvt->normal_screen.bracketed_paste_mode = FALSE;
 	pvt->alternate_screen.scrolling_restricted = FALSE;
 	pvt->alternate_screen.sendrecv_mode = TRUE;
 	pvt->alternate_screen.insert_mode = FALSE;
 	pvt->alternate_screen.linefeed_mode = FALSE;
 	pvt->alternate_screen.origin_mode = FALSE;
 	pvt->alternate_screen.reverse_mode = FALSE;
-	pvt->alternate_screen.bracketed_paste_mode = FALSE;
 	pvt->cursor_visible = TRUE;
+        /* For some reason, xterm doesn't reset alternateScroll, but we do. */
+        pvt->alternate_screen_scroll = TRUE;
 	/* Reset the encoding. */
 	vte_terminal_set_encoding(terminal, NULL);
 	g_assert(pvt->encoding != NULL);
@@ -14108,13 +13994,13 @@ vte_terminal_reset(VteTerminal *terminal,
 		g_free(pvt->selection);
 		pvt->selection = NULL;
 		memset(&pvt->selection_origin, 0,
-		       sizeof(&pvt->selection_origin));
+		       sizeof(pvt->selection_origin));
 		memset(&pvt->selection_last, 0,
-		       sizeof(&pvt->selection_last));
+		       sizeof(pvt->selection_last));
 		memset(&pvt->selection_start, 0,
-		       sizeof(&pvt->selection_start));
+		       sizeof(pvt->selection_start));
 		memset(&pvt->selection_end, 0,
-		       sizeof(&pvt->selection_end));
+		       sizeof(pvt->selection_end));
 	}
 	/* Reset mouse motion events. */
 	pvt->mouse_tracking_mode = MOUSE_TRACKING_NONE;
@@ -14123,8 +14009,11 @@ vte_terminal_reset(VteTerminal *terminal,
 	pvt->mouse_last_y = 0;
 	pvt->mouse_xterm_extension = FALSE;
 	pvt->mouse_urxvt_extension = FALSE;
+	pvt->mouse_smooth_scroll_delta = 0.;
 	/* Clear modifiers. */
 	pvt->modifiers = 0;
+	/* Reset miscellaneous stuff. */
+	pvt->bracketed_paste_mode = FALSE;
 	/* Cause everything to be redrawn (or cleared). */
 	vte_terminal_maybe_scroll_to_bottom(terminal);
 	_vte_invalidate_all(terminal);
@@ -14661,7 +14550,7 @@ reset_update_regions (VteTerminal *terminal)
 {
 	if (terminal->pvt->update_regions != NULL) {
 		g_slist_foreach (terminal->pvt->update_regions,
-				(GFunc)gdk_region_destroy, NULL);
+				(GFunc)cairo_region_destroy, NULL);
 		g_slist_free (terminal->pvt->update_regions);
 		terminal->pvt->update_regions = NULL;
 	}
@@ -14952,7 +14841,7 @@ static gboolean
 update_regions (VteTerminal *terminal)
 {
 	GSList *l;
-	GdkRegion *region;
+	cairo_region_t *region;
 	GdkWindow *window;
 
 	if (G_UNLIKELY (! gtk_widget_is_drawable (&terminal->widget)
@@ -14968,10 +14857,10 @@ update_regions (VteTerminal *terminal)
 	l = terminal->pvt->update_regions;
 	if (g_slist_next (l) != NULL) {
 		/* amalgamate into one super-region */
-		region = gdk_region_new ();
+		region = cairo_region_create ();
 		do {
-			gdk_region_union (region, l->data);
-			gdk_region_destroy (l->data);
+			cairo_region_union (region, l->data);
+			cairo_region_destroy (l->data);
 		} while ((l = g_slist_next (l)) != NULL);
 	} else {
 		region = l->data;
@@ -14984,7 +14873,7 @@ update_regions (VteTerminal *terminal)
 	window = gtk_widget_get_window (&terminal->widget);
 	gdk_window_invalidate_region (window, region, FALSE);
 	gdk_window_process_updates (window, FALSE);
-	gdk_region_destroy (region);
+	cairo_region_destroy (region);
 
 	_vte_debug_print (VTE_DEBUG_WORK, "-");
 
@@ -15061,14 +14950,22 @@ update_repeat_timeout (gpointer data)
 	_vte_debug_print (VTE_DEBUG_WORK, "]");
 
 	/* We only stop the timer if no update request was received in this
-	 * past cycle.
+         * past cycle.  Technically, always stop this timer object and maybe
+         * reinstall a new one because we need to delay by the amount of time
+         * it took to repaint the screen: bug 730732.
 	 */
-	again = TRUE;
 	if (active_terminals == NULL) {
 		_vte_debug_print(VTE_DEBUG_TIMEOUT,
 				"Stoping update timeout\n");
 		update_timeout_tag = 0;
 		again = FALSE;
+        } else {
+                update_timeout_tag =
+                        g_timeout_add_full (G_PRIORITY_DEFAULT_IDLE,
+                                            VTE_UPDATE_REPEAT_TIMEOUT,
+                                            update_repeat_timeout, NULL,
+                                            NULL);
+                again = TRUE;
 	}
 
 	in_update_timeout = FALSE;
@@ -15085,7 +14982,7 @@ update_repeat_timeout (gpointer data)
 		prune_chunks (10);
 	}
 
-	return again;
+        return FALSE;  /* If we need to go again, we already have a new timer for that. */
 }
 
 static gboolean

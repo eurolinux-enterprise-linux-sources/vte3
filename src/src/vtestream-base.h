@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2009,2010 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * Red Hat Author(s): Behdad Esfahbod
  */
@@ -33,14 +33,11 @@ typedef struct _VteStreamClass {
 	GObjectClass parent_class;
 
 	void (*reset) (VteStream *stream, gsize offset);
-	gsize (*append) (VteStream *stream, const char *data, gsize len);
+	void (*append) (VteStream *stream, const char *data, gsize len);
 	gboolean (*read) (VteStream *stream, gsize offset, char *data, gsize len);
 	void (*truncate) (VteStream *stream, gsize offset);
-	void (*new_page) (VteStream *stream);
+	void (*advance_tail) (VteStream *stream, gsize offset);
 	gsize (*head) (VteStream *stream);
-	gboolean (*write_contents) (VteStream *stream, GOutputStream *output,
-				    gsize start_offset,
-				    GCancellable *cancellable, GError **error);
 } VteStreamClass;
 
 static GType _vte_stream_get_type (void);
@@ -65,10 +62,10 @@ _vte_stream_reset (VteStream *stream, gsize offset)
 	VTE_STREAM_GET_CLASS (stream)->reset (stream, offset);
 }
 
-gsize
+void
 _vte_stream_append (VteStream *stream, const char *data, gsize len)
 {
-	return VTE_STREAM_GET_CLASS (stream)->append (stream, data, len);
+	VTE_STREAM_GET_CLASS (stream)->append (stream, data, len);
 }
 
 gboolean
@@ -84,23 +81,13 @@ _vte_stream_truncate (VteStream *stream, gsize offset)
 }
 
 void
-_vte_stream_new_page (VteStream *stream)
+_vte_stream_advance_tail (VteStream *stream, gsize offset)
 {
-	VTE_STREAM_GET_CLASS (stream)->new_page (stream);
+	VTE_STREAM_GET_CLASS (stream)->advance_tail (stream, offset);
 }
 
 gsize
 _vte_stream_head (VteStream *stream)
 {
 	return VTE_STREAM_GET_CLASS (stream)->head (stream);
-}
-
-gboolean
-_vte_stream_write_contents (VteStream *stream, GOutputStream *output,
-			    gsize start_offset,
-			    GCancellable *cancellable, GError **error)
-{
-	return VTE_STREAM_GET_CLASS (stream)->write_contents (stream, output,
-							      start_offset,
-							      cancellable, error);
 }

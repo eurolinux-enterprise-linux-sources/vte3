@@ -29,6 +29,7 @@ EXTRA_libvte@VTE_LIBRARY_SUFFIX_U@_la_SOURCES = \
 	$(NULL)
 
 libvte@VTE_LIBRARY_SUFFIX_U@_la_SOURCES = \
+	box_drawing.h \
 	buffer.h \
 	caps.c \
 	caps.h \
@@ -54,7 +55,6 @@ libvte@VTE_LIBRARY_SUFFIX_U@_la_SOURCES = \
 	trie.h \
 	vte.c \
 	vte.h \
-	vte-gtk-compat.h \
 	vte-private.h \
 	vteaccess.c \
 	vteaccess.h \
@@ -87,15 +87,19 @@ libvte@VTE_LIBRARY_SUFFIX_U@_la_SOURCES = \
 	vtetypebuiltins.h \
 	vteunistr.c \
 	vteunistr.h \
+	vteutils.c \
+	vteutils.h \
 	vteversion.h
 	$(NULL)
 
 libvte@VTE_LIBRARY_SUFFIX_U@_la_CPPFLAGS = \
-	-DG_LOG_DOMAIN=\"Vte-$(VTE_API_VERSION)\" \
+	-DG_LOG_DOMAIN=\"Vte\" \
 	-DVTE_API_VERSION=\"$(VTE_API_VERSION)\" \
 	-DDATADIR='"$(datadir)"' \
 	-DLIBEXECDIR='"$(libexecdir)"' \
 	-DLOCALEDIR='"$(localedir)"' \
+	-DGLIB_DISABLE_DEPRECATION_WARNINGS \
+	-DGDK_DISABLE_DEPRECATION_WARNINGS \
 	-DVTE_COMPILATION \
 	$(AM_CPPFLAGS)
 
@@ -112,10 +116,13 @@ libvte@VTE_LIBRARY_SUFFIX_U@_la_LDFLAGS = \
 # Generated sources
 
 VTESEQ_BUILTSOURCES = vteseq-list.h vteseq-2.c vteseq-n.c
-BUILT_SOURCES = marshal.c marshal.h vtetypebuiltins.c vtetypebuiltins.h vteresources.c $(VTESEQ_BUILTSOURCES)
+BUILT_SOURCES = box_drawing.h marshal.c marshal.h vtetypebuiltins.c vtetypebuiltins.h vteresources.c $(VTESEQ_BUILTSOURCES)
 MAINTAINERCLEANFILES = $(VTESEQ_BUILTSOURCES)
-EXTRA_DIST += $(VTESEQ_BUILTSOURCES)
-CLEANFILES = marshal.c marshal.h vtetypebuiltins.c vtetypebuiltins.h stamp-vtetypebuiltins.h vteresources.c
+EXTRA_DIST += $(VTESEQ_BUILTSOURCES) box_drawing.txt box_drawing_generate.sh
+CLEANFILES = box_drawing.h marshal.c marshal.h vtetypebuiltins.c vtetypebuiltins.h stamp-vtetypebuiltins.h vteresources.c
+
+box_drawing.h: box_drawing.txt
+	$(AM_V_GEN) $(srcdir)/box_drawing_generate.sh < $< > $@
 
 marshal.c: marshal.list
 	$(AM_V_GEN) $(GLIB_GENMARSHAL) --prefix=_vte_marshal --header --body --internal $< > $@
@@ -156,9 +163,22 @@ vteresources.c: vte.gresource.xml Makefile $(shell $(GLIB_COMPILE_RESOURCES) --g
 
 bin_PROGRAMS = vte@VTE_LIBRARY_SUFFIX_U@
 
-vte@VTE_LIBRARY_SUFFIX_U@_SOURCES = vteapp.c
-vte@VTE_LIBRARY_SUFFIX_U@_CFLAGS = $(VTE_CFLAGS)
-vte@VTE_LIBRARY_SUFFIX_U@_LDADD = libvte@VTE_LIBRARY_SUFFIX_U@.la $(VTE_LIBS)
+vte@VTE_LIBRARY_SUFFIX_U@_SOURCES = \
+	vteapp.c \
+	$(NULL)
+
+vte@VTE_LIBRARY_SUFFIX_U@_CPPFLAGS = \
+        -DGLIB_DISABLE_DEPRECATION_WARNINGS \
+        -DGDK_DISABLE_DEPRECATION_WARNINGS \
+	$(AM_CPPFLAGS)
+
+vte@VTE_LIBRARY_SUFFIX_U@_CFLAGS = \
+	$(VTE_CFLAGS) \
+	$(AM_CFLAGS)
+
+vte@VTE_LIBRARY_SUFFIX_U@_LDADD = \
+	libvte@VTE_LIBRARY_SUFFIX_U@.la \
+	$(VTE_LIBS)
 
 # introspection
 
@@ -339,6 +359,8 @@ xticker_SOURCES = xticker.c
 
 profiledir = $(sysconfdir)/profile.d
 dist_profile_DATA = vte.sh
+
+.DELETE_ON_ERROR:
 
 -include $(top_srcdir)/git.mk
 -include $(INTROSPECTION_MAKEFILE)

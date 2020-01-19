@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2001,2002,2003,2009,2010 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef vte_vte_h_included
@@ -38,12 +38,6 @@ G_BEGIN_DECLS
 #define _VTE_SEAL(name) _vte_sealed__ ## name
 #else
 #define _VTE_SEAL(name) name
-#endif
-
-#ifdef VTE_DISABLE_DEPRECATED
-#define _VTE_DEPRECATED(name) _vte_deprecated__ ## name
-#else
-#define _VTE_DEPRECATED(name) name
 #endif
 
 #define VTE_TYPE_TERMINAL            (vte_terminal_get_type())
@@ -127,62 +121,12 @@ struct _VteTerminalClass {
 	void (*copy_clipboard)(VteTerminal* terminal);
 	void (*paste_clipboard)(VteTerminal* terminal);
 
-#if !GTK_CHECK_VERSION (2, 91, 2)
-	void (* set_scroll_adjustments) (GtkWidget *widget,
-					 GtkAdjustment *hadjustment,
-					 GtkAdjustment *vadjustment);
-#endif
-
  	void (*beep)(VteTerminal* terminal);
 
-#if GTK_CHECK_VERSION (2, 99, 0)
         /* Padding for future expansion. */
         gpointer padding[16];
-#else
-	/* Padding for future expansion. */
-	void (*vte_reserved3)(void);
-	void (*vte_reserved4)(void);
 
-	/*< private > */
-	/* Signals we might emit. */
-        guint _VTE_DEPRECATED(eof_signal);
-        guint _VTE_DEPRECATED(child_exited_signal);
-        guint _VTE_DEPRECATED(emulation_changed_signal);
-        guint _VTE_DEPRECATED(encoding_changed_signal);
-        guint _VTE_DEPRECATED(char_size_changed_signal);
-        guint _VTE_DEPRECATED(window_title_changed_signal);
-        guint _VTE_DEPRECATED(icon_title_changed_signal);
-        guint _VTE_DEPRECATED(selection_changed_signal);
-        guint _VTE_DEPRECATED(contents_changed_signal);
-        guint _VTE_DEPRECATED(cursor_moved_signal);
-        guint _VTE_DEPRECATED(status_line_changed_signal);
-        guint _VTE_DEPRECATED(commit_signal);
-        guint _VTE_DEPRECATED(deiconify_window_signal);
-        guint _VTE_DEPRECATED(iconify_window_signal);
-        guint _VTE_DEPRECATED(raise_window_signal);
-        guint _VTE_DEPRECATED(lower_window_signal);
-        guint _VTE_DEPRECATED(refresh_window_signal);
-        guint _VTE_DEPRECATED(restore_window_signal);
-        guint _VTE_DEPRECATED(maximize_window_signal);
-        guint _VTE_DEPRECATED(resize_window_signal);
-        guint _VTE_DEPRECATED(move_window_signal);
-        guint _VTE_DEPRECATED(increase_font_size_signal);
-        guint _VTE_DEPRECATED(decrease_font_size_signal);
-        guint _VTE_DEPRECATED(text_modified_signal);
-        guint _VTE_DEPRECATED(text_inserted_signal);
-        guint _VTE_DEPRECATED(text_deleted_signal);
-        guint _VTE_DEPRECATED(text_scrolled_signal);
-        guint _VTE_DEPRECATED(reserved1);
-        guint _VTE_DEPRECATED(reserved2);
-        guint _VTE_DEPRECATED(reserved3);
-        guint _VTE_DEPRECATED(reserved4);
-        guint _VTE_DEPRECATED(reserved5);
-        guint _VTE_DEPRECATED(reserved6);
-#endif
-
-#if GTK_CHECK_VERSION (2, 99, 0)
         VteTerminalClassPrivate *priv;
-#endif
 };
 
 /**
@@ -306,10 +250,11 @@ void vte_terminal_set_audible_bell(VteTerminal *terminal, gboolean is_audible);
 gboolean vte_terminal_get_audible_bell(VteTerminal *terminal);
 void vte_terminal_set_visible_bell(VteTerminal *terminal, gboolean is_visible);
 gboolean vte_terminal_get_visible_bell(VteTerminal *terminal);
-void vte_terminal_set_scroll_background(VteTerminal *terminal, gboolean scroll);
 void vte_terminal_set_scroll_on_output(VteTerminal *terminal, gboolean scroll);
 void vte_terminal_set_scroll_on_keystroke(VteTerminal *terminal,
 					  gboolean scroll);
+void vte_terminal_set_rewrap_on_resize(VteTerminal *terminal, gboolean rewrap);
+gboolean vte_terminal_get_rewrap_on_resize(VteTerminal *terminal);
 
 /* Set the color scheme. */
 void vte_terminal_set_color_dim(VteTerminal *terminal,
@@ -324,13 +269,14 @@ void vte_terminal_set_color_cursor(VteTerminal *terminal,
 				   const GdkColor *cursor_background);
 void vte_terminal_set_color_highlight(VteTerminal *terminal,
 				      const GdkColor *highlight_background);
+void vte_terminal_set_color_highlight_foreground(VteTerminal *terminal,
+						 const GdkColor *highlight_foreground);
 void vte_terminal_set_colors(VteTerminal *terminal,
 			     const GdkColor *foreground,
 			     const GdkColor *background,
 			     const GdkColor *palette,
 			     glong palette_size);
 
-#if GTK_CHECK_VERSION (2, 99, 0)
 void vte_terminal_set_color_bold_rgba(VteTerminal *terminal,
                                       const GdkRGBA *bold);
 void vte_terminal_set_color_dim_rgba(VteTerminal *terminal,
@@ -343,26 +289,15 @@ void vte_terminal_set_color_cursor_rgba(VteTerminal *terminal,
 					const GdkRGBA *cursor_background);
 void vte_terminal_set_color_highlight_rgba(VteTerminal *terminal,
 					   const GdkRGBA *highlight_background);
+void vte_terminal_set_color_highlight_foreground_rgba(VteTerminal *terminal,
+						      const GdkRGBA *highlight_foreground);
 void vte_terminal_set_colors_rgba(VteTerminal *terminal,
 				  const GdkRGBA *foreground,
 				  const GdkRGBA *background,
 				  const GdkRGBA *palette,
 				  gsize palette_size);
-#endif
 
 void vte_terminal_set_default_colors(VteTerminal *terminal);
-
-/* Background effects. */
-void vte_terminal_set_background_image(VteTerminal *terminal, GdkPixbuf *image);
-void vte_terminal_set_background_image_file(VteTerminal *terminal,
-					    const char *path);
-void vte_terminal_set_background_tint_color(VteTerminal *terminal,
-					    const GdkColor *color);
-void vte_terminal_set_background_saturation(VteTerminal *terminal,
-					    double saturation);
-void vte_terminal_set_background_transparent(VteTerminal *terminal,
-					     gboolean transparent);
-void vte_terminal_set_opacity(VteTerminal *terminal, guint16 opacity);
 
 /* Set whether or not the cursor blinks. */
 void vte_terminal_set_cursor_blink_mode(VteTerminal *terminal,
@@ -482,10 +417,6 @@ VtePty *vte_terminal_get_pty_object(VteTerminal *terminal);
 char *vte_get_user_shell (void);
 
 /* Accessors for bindings. */
-#if !GTK_CHECK_VERSION (2, 91, 2)
-GtkAdjustment *vte_terminal_get_adjustment(VteTerminal *terminal);
-#endif
-
 glong vte_terminal_get_char_width(VteTerminal *terminal);
 glong vte_terminal_get_char_height(VteTerminal *terminal);
 glong vte_terminal_get_row_count(VteTerminal *terminal);
@@ -518,7 +449,6 @@ gboolean vte_terminal_write_contents (VteTerminal *terminal,
 				      GError **error);
 
 #undef _VTE_SEAL
-#undef _VTE_DEPRECATED
 
 G_END_DECLS
 

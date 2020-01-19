@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2001,2002 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 
@@ -54,12 +54,9 @@ window_title_changed(GtkWidget *widget, gpointer win)
 static void
 icon_title_changed(GtkWidget *widget, gpointer win)
 {
-	GtkWindow *window;
-
 	g_assert(VTE_TERMINAL(widget));
 	g_assert(GTK_IS_WINDOW(win));
 	g_assert(VTE_TERMINAL(widget)->icon_title != NULL);
-	window = GTK_WINDOW(win);
 
 	g_message("Icon title changed to \"%s\".\n",
 		  VTE_TERMINAL(widget)->icon_title);
@@ -68,7 +65,6 @@ icon_title_changed(GtkWidget *widget, gpointer win)
 static void
 char_size_changed(GtkWidget *widget, guint width, guint height, gpointer data)
 {
-	VteTerminal *terminal;
 	GtkWindow *window;
 	GdkGeometry geometry;
 	GtkBorder *inner_border;
@@ -76,7 +72,6 @@ char_size_changed(GtkWidget *widget, guint width, guint height, gpointer data)
 	g_assert(GTK_IS_WINDOW(data));
 	g_assert(VTE_IS_TERMINAL(widget));
 
-	terminal = VTE_TERMINAL(widget);
 	window = GTK_WINDOW(data);
 	if (!gtk_widget_get_realized (GTK_WIDGET (window)))
 		return;
@@ -538,11 +533,7 @@ int
 main(int argc, char **argv)
 {
 	GdkScreen *screen;
-#if GTK_CHECK_VERSION (2, 90, 8)
 	GdkVisual *visual;
-#else
-	GdkColormap *colormap;
-#endif
 	GtkWidget *window, *widget,*hbox = NULL, *scrollbar, *scrolled_window = NULL;
 	VteTerminal *terminal;
 	char *env_add[] = {
@@ -557,9 +548,9 @@ main(int argc, char **argv)
 		 icon_title = FALSE, shell = TRUE, highlight_set = FALSE,
 		 cursor_set = FALSE, reverse = FALSE, use_geometry_hints = TRUE,
 		 antialias = TRUE, use_scrolled_window = FALSE,
-		 show_object_notifications = FALSE;
+		 show_object_notifications = FALSE, rewrap = TRUE;
 	char *geometry = NULL;
-	gint lines = 100;
+	gint lines = -1;
 	const char *message = "Launching interactive shell...\r\n";
 	const char *font = NULL;
 	const char *termcap = NULL;
@@ -591,6 +582,11 @@ main(int argc, char **argv)
 			"dingus", 'D', 0,
 			G_OPTION_ARG_NONE, &dingus,
 			"Highlight URLs inside the terminal", NULL
+		},
+		{
+			"no-rewrap", 'R', G_OPTION_FLAG_REVERSE,
+			G_OPTION_ARG_NONE, &rewrap,
+			"Disable rewrapping on resize", NULL
 		},
 		{
 			"shell", 'S', G_OPTION_FLAG_REVERSE,
@@ -792,15 +788,9 @@ main(int argc, char **argv)
 
 	/* Set ARGB colormap */
 	screen = gtk_widget_get_screen (window);
-#if GTK_CHECK_VERSION (2, 90, 8)
 	visual = gdk_screen_get_rgba_visual(screen);
 	if (visual)
 		gtk_widget_set_visual(GTK_WIDGET(window), visual);
-#else
-	colormap = gdk_screen_get_rgba_colormap (screen);
-	if (colormap)
-	    gtk_widget_set_colormap(window, colormap);
-#endif
 
 	if (use_scrolled_window) {
 		scrolled_window = gtk_scrolled_window_new (NULL, NULL);
@@ -891,22 +881,27 @@ main(int argc, char **argv)
 	vte_terminal_set_audible_bell(terminal, audible);
 	vte_terminal_set_visible_bell(terminal, !audible);
 	vte_terminal_set_cursor_blink_mode(terminal, cursor_blink_mode);
-	vte_terminal_set_scroll_background(terminal, scroll);
 	vte_terminal_set_scroll_on_output(terminal, FALSE);
 	vte_terminal_set_scroll_on_keystroke(terminal, TRUE);
 	vte_terminal_set_scrollback_lines(terminal, lines);
 	vte_terminal_set_mouse_autohide(terminal, TRUE);
+
+        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+	vte_terminal_set_scroll_background(terminal, scroll);
 	if (background != NULL) {
 		vte_terminal_set_background_image_file(terminal,
 						       background);
 	}
 	if (transparent) {
+                gtk_widget_set_app_paintable (window, TRUE);
 		vte_terminal_set_background_transparent(terminal,
 							TRUE);
-	}
-	vte_terminal_set_background_tint_color(terminal, &tint);
+                vte_terminal_set_background_tint_color(terminal, &tint);
+                vte_terminal_set_opacity(terminal, 0xdddd);
+        }
+        G_GNUC_END_IGNORE_DEPRECATIONS;
+
 	vte_terminal_set_colors(terminal, &fore, &back, NULL, 0);
-	vte_terminal_set_opacity(terminal, 0xdddd);
 	if (highlight_set) {
 		vte_terminal_set_color_highlight(terminal,
 						 &highlight);
@@ -919,9 +914,13 @@ main(int argc, char **argv)
 	}
 	vte_terminal_set_cursor_shape(terminal, cursor_shape);
 
+	vte_terminal_set_rewrap_on_resize(terminal, rewrap);
+
 	/* Set the default font. */
+        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
 	vte_terminal_set_font_from_string_full(terminal, font,
 					       antialias ? VTE_ANTI_ALIAS_USE_DEFAULT : VTE_ANTI_ALIAS_FORCE_DISABLE);
+        G_GNUC_END_IGNORE_DEPRECATIONS;
 
 	/* Match "abcdefg". */
 	if (dingus) {
@@ -1028,9 +1027,11 @@ main(int argc, char **argv)
 	#endif
 		} else {
 			long i;
+                        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
 			i = vte_terminal_forkpty(terminal,
 						 env_add, working_directory,
 						 TRUE, TRUE, TRUE);
+                        G_GNUC_END_IGNORE_DEPRECATIONS;
 			switch (i) {
 			case -1:
 				/* abnormal */
@@ -1076,9 +1077,7 @@ main(int argc, char **argv)
 		if (!gtk_window_parse_geometry (GTK_WINDOW(window), geometry)) {
 			g_warning (_("Could not parse the geometry spec passed to --geometry"));
 		}
-	}
-#if GTK_CHECK_VERSION(2, 91, 0)
-	else {
+	} else {
 		/* As of GTK+ 2.91.0, the default size of a window comes from its minimum
 		 * size not its natural size, so we need to set the right default size
 		 * explicitly */
@@ -1086,7 +1085,6 @@ main(int argc, char **argv)
 						 vte_terminal_get_column_count (terminal),
 						 vte_terminal_get_row_count (terminal));
 	}
-#endif
 
 	gtk_widget_show_all(window);
 

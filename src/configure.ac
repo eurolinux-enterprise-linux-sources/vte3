@@ -1,6 +1,6 @@
 m4_define([version_major],0)
-m4_define([version_minor],34)
-m4_define([version_micro],6)
+m4_define([version_minor],36)
+m4_define([version_micro],4)
 m4_define([version_triplet],version_major.version_minor.version_micro)
 
 m4_define([so_major_adjust],9) dnl Don't change!
@@ -198,7 +198,7 @@ esac
 GLIB_REQUIRED=2.31.13
 GIO_REQUIRED=2.31.13
 PANGO_REQUIRED=1.22.0
-AC_DEFINE(GDK_MULTIHEAD_SAFE,1,[Force use of GDK's multihead-safe APIs.])
+AC_DEFINE(GDK_MULTIHEAD_SAFE,1,[Force use of GDK multihead-safe APIs.])
 PKG_CHECK_MODULES(GLIB,[glib-2.0 >= $GLIB_REQUIRED gobject-2.0 gio-2.0 >= $GIO_REQUIRED])
 PKG_CHECK_MODULES(GTK,[glib-2.0 >= $GLIB_REQUIRED gobject-2.0 gio-2.0 >= $GIO_REQUIRED gtk+-$GTK_API_VERSION >= $GTK_REQUIRED])
 
@@ -220,6 +220,9 @@ AC_HEADER_TIOCGWINSZ
 
 # Check for PTY handling functions.
 AC_CHECK_FUNCS([cfmakeraw fork setsid setpgid getpgid getpt grantpt unlockpt posix_openpt ptsname ptsname_r tcgetattr tcsetattr])
+
+# Misc I/O routines.
+AC_CHECK_FUNCS([pread pwrite fwrite_unlocked])
 
 # Pull in the right libraries for various functions which might not be
 # bundled into an exploded libc.

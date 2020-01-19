@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2001,2002 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include <config.h>
@@ -523,20 +523,34 @@ struct _vte_capability_string _vte_xterm_capability_strings[] = {
 	{OSC "1;%s" BEL, "set-icon-title", 0},
 	{OSC "2;%s" BEL, "set-window-title", 0},
 	{OSC "3;%s" BEL, "set-xproperty", 0},
-	{OSC "4;%s" BEL, "change-color", 0},
+	{OSC "4;%s" BEL, "change-color-bel", 0},
         {OSC "6;%s" BEL, "set-current-file-uri", 0},
         {OSC "7;%s" BEL, "set-current-directory-uri", 0},
-	{OSC "10;%s" BEL, "change-foreground-colors", 0},
-	{OSC "11;%s" BEL, "change-background-colors", 0},
-	{OSC "12;%s" BEL, "change-cursor-colors", 0},
-	{OSC "13;%s" BEL, "change-mouse-cursor-foreground-colors", 0},
-	{OSC "14;%s" BEL, "change-mouse-cursor-foreground-colors", 0},
-	{OSC "15;%s" BEL, "change-tek-background-colors", 0},
-	{OSC "16;%s" BEL, "change-tek-background-colors", 0},
-	{OSC "17;%s" BEL, "change-highlight-colors", 0},
+	{OSC "10;%s" BEL, "change-foreground-colors-bel", 0},
+	{OSC "11;%s" BEL, "change-background-colors-bel", 0},
+	{OSC "12;%s" BEL, "change-cursor-colors-bel", 0},
+	{OSC "13;%s" BEL, "change-mouse-cursor-foreground-colors-bel", 0},
+	{OSC "14;%s" BEL, "change-mouse-cursor-background-colors-bel", 0},
+	{OSC "15;%s" BEL, "change-tek-foreground-colors-bel", 0},
+	{OSC "16;%s" BEL, "change-tek-background-colors-bel", 0},
+	{OSC "17;%s" BEL, "change-highlight-background-colors-bel", 0},
+	{OSC "18;%s" BEL, "change-tek-cursor-colors-bel", 0},
+	{OSC "19;%s" BEL, "change-highlight-foreground-colors-bel", 0},
 	{OSC "46;%s" BEL, "change-logfile", 0},
 	{OSC "50;#%d" BEL, "change-font-number", 0},
 	{OSC "50;%s" BEL, "change-font-name", 0},
+	{OSC "104" BEL, "reset-color", 0},
+	{OSC "104;%m" BEL, "reset-color", 0},
+	{OSC "110" BEL, "reset-foreground-colors", 0},
+	{OSC "111" BEL, "reset-background-colors", 0},
+	{OSC "112" BEL, "reset-cursor-colors", 0},
+	{OSC "113" BEL, "reset-mouse-cursor-foreground-colors", 0},
+	{OSC "114" BEL, "reset-mouse-cursor-background-colors", 0},
+	{OSC "115" BEL, "reset-tek-foreground-colors", 0},
+	{OSC "116" BEL, "reset-tek-background-colors", 0},
+	{OSC "117" BEL, "reset-highlight-background-colors", 0},
+	{OSC "118" BEL, "reset-tek-cursor-colors", 0},
+	{OSC "119" BEL, "reset-highlight-foreground-colors", 0},
 
 	/* Set text parameters, ST-terminated versions. */
 	{OSC ";%s" ST, "set-icon-and-window-title", 0}, /* undocumented default */
@@ -544,20 +558,34 @@ struct _vte_capability_string _vte_xterm_capability_strings[] = {
 	{OSC "1;%s" ST, "set-icon-title", 0},
 	{OSC "2;%s" ST, "set-window-title", 0},
 	{OSC "3;%s" ST, "set-xproperty", 0},
-	{OSC "4;%s" ST, "change-color", 0},
+	{OSC "4;%s" ST, "change-color-st", 0},
         {OSC "6;%s" ST, "set-current-file-uri", 0},
         {OSC "7;%s" ST, "set-current-directory-uri", 0},
-	{OSC "10;%s" ST, "change-foreground-colors", 0},
-	{OSC "11;%s" ST, "change-background-colors", 0},
-	{OSC "12;%s" ST, "change-cursor-colors", 0},
-	{OSC "13;%s" ST, "change-mouse-cursor-foreground-colors", 0},
-	{OSC "14;%s" ST, "change-mouse-cursor-foreground-colors", 0},
-	{OSC "15;%s" ST, "change-tek-background-colors", 0},
-	{OSC "16;%s" ST, "change-tek-background-colors", 0},
-	{OSC "17;%s" ST, "change-highlight-colors", 0},
+	{OSC "10;%s" ST, "change-foreground-colors-st", 0},
+	{OSC "11;%s" ST, "change-background-colors-st", 0},
+	{OSC "12;%s" ST, "change-cursor-colors-st", 0},
+	{OSC "13;%s" ST, "change-mouse-cursor-foreground-colors-st", 0},
+	{OSC "14;%s" ST, "change-mouse-cursor-background-colors-st", 0},
+	{OSC "15;%s" ST, "change-tek-foreground-colors-st", 0},
+	{OSC "16;%s" ST, "change-tek-background-colors-st", 0},
+	{OSC "17;%s" ST, "change-highlight-background-colors-st", 0},
+	{OSC "18;%s" ST, "change-tek-cursor-colors-st", 0},
+	{OSC "19;%s" ST, "change-highlight-foreground-colors-st", 0},
 	{OSC "46;%s" ST, "change-logfile", 0},
 	{OSC "50;#%d" ST, "change-font-number", 0},
 	{OSC "50;%s" ST, "change-font-name", 0},
+	{OSC "104" ST, "reset-color", 0},
+	{OSC "104;%m" ST, "reset-color", 0},
+	{OSC "110" ST, "reset-foreground-colors", 0},
+	{OSC "111" ST, "reset-background-colors", 0},
+	{OSC "112" ST, "reset-cursor-colors", 0},
+	{OSC "113" ST, "reset-mouse-cursor-foreground-colors", 0},
+	{OSC "114" ST, "reset-mouse-cursor-background-colors", 0},
+	{OSC "115" ST, "reset-tek-foreground-colors", 0},
+	{OSC "116" ST, "reset-tek-background-colors", 0},
+	{OSC "117" ST, "reset-highlight-background-colors", 0},
+	{OSC "118" ST, "reset-tek-cursor-colors", 0},
+	{OSC "119" ST, "reset-highlight-foreground-colors", 0},
 
 	/* These may be bogus, I can't find docs for them anywhere (#104154). */
 	{OSC "21;%s" BEL, "set-text-property-21", 0},

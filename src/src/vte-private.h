@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2001-2004 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef vte_vte_private_h_included
@@ -56,13 +56,36 @@ G_BEGIN_DECLS
 #define VTE_LINE_WIDTH			1
 #define VTE_ROWS			24
 #define VTE_COLUMNS			80
+
+/*
+ * Colors are encoded in 25 bits as follows:
+ *
+ * 0 .. 255:
+ *   Colors set by SGR 256-color extension (38/48;5;index).
+ *   These are direct indices into the color palette.
+ *
+ * 256 .. VTE_PALETTE_SIZE - 1 (262):
+ *   Special values, such as default colors.
+ *   These are direct indices into the color palette.
+ *
+ * VTE_LEGACY_COLORS_OFFSET (512) .. VTE_LEGACY_COLORS_OFFSET + VTE_LEGACY_FULL_COLOR_SET_SIZE - 1 (527):
+ *   Colors set by legacy escapes (30..37/40..47, 90..97/100..107).
+ *   These are translated to 0 .. 15 before looking up in the palette, taking bold into account.
+ *
+ * VTE_RGB_COLOR (2^24) .. VTE_RGB_COLOR + 16Mi - 1 (2^25 - 1):
+ *   Colors set by SGR truecolor extension (38/48;2;red;green;blue)
+ *   These are direct RGB values.
+ */
+#define VTE_LEGACY_COLORS_OFFSET	512
 #define VTE_LEGACY_COLOR_SET_SIZE	8
+#define VTE_LEGACY_FULL_COLOR_SET_SIZE	16
 #define VTE_COLOR_PLAIN_OFFSET		0
 #define VTE_COLOR_BRIGHT_OFFSET		8
 #define VTE_COLOR_DIM_OFFSET		16
-/* More color defines in ring.h */
+#define VTE_RGB_COLOR			(1 << 24)
+/* More color defines in vterowdata.h */
 
-#define VTE_SCROLLBACK_INIT		100
+#define VTE_SCROLLBACK_INIT		512
 #define VTE_SATURATION_MAX		10000
 #define VTE_DEFAULT_CURSOR		GDK_XTERM
 #define VTE_MOUSING_CURSOR		GDK_LEFT_PTR
@@ -85,6 +108,10 @@ G_BEGIN_DECLS
 #define VTE_CELL_BBOX_SLACK		1
 
 #define VTE_UTF8_BPC                    (6) /* Maximum number of bytes used per UTF-8 character */
+
+/* Keep in decreasing order of precedence. */
+#define VTE_COLOR_SOURCE_ESCAPE 0
+#define VTE_COLOR_SOURCE_API 1
 
 #define I_(string) (g_intern_static_string(string))
 
@@ -143,9 +170,12 @@ typedef struct _VteWordCharRange {
 	gunichar start, end;
 } VteWordCharRange;
 
-typedef struct _VteVisualPosition {
-	long row, col;
-} VteVisualPosition;
+typedef struct _VtePaletteColor {
+	struct {
+		PangoColor color;
+		gboolean is_set;
+	} sources[2];
+} VtePaletteColor;
 
 /* Terminal private data. */
 struct _VteTerminalPrivate {
@@ -218,7 +248,6 @@ struct _VteTerminalPrivate {
 		gboolean sendrecv_mode;	/* sendrecv mode */
 		gboolean insert_mode;	/* insert mode */
 		gboolean linefeed_mode;	/* linefeed mode */
-		gboolean bracketed_paste_mode;
 		struct vte_scrolling_region {
 			int start, end;
 		} scrolling_region;	/* the region we scroll in */
@@ -269,16 +298,19 @@ struct _VteTerminalPrivate {
 	guint bell_margin;
 	gboolean allow_bold;
 	gboolean nrc_mode;
-	gboolean smooth_scroll;
+        gboolean deccolm_mode; /* DECCOLM allowed */
 	GHashTable *tabstops;
 	gboolean text_modified_flag;
 	gboolean text_inserted_flag;
 	gboolean text_deleted_flag;
+	gboolean rewrap_on_resize;
+	gboolean bracketed_paste_mode;
 
 	/* Scrolling options. */
 	gboolean scroll_background;
 	gboolean scroll_on_output;
 	gboolean scroll_on_keystroke;
+	gboolean alternate_screen_scroll;
 	long scrollback_lines;
 
 	/* Cursor shape */
@@ -307,6 +339,7 @@ struct _VteTerminalPrivate {
 	guint mouse_autoscroll_tag;
 	gboolean mouse_xterm_extension;
 	gboolean mouse_urxvt_extension;
+	double mouse_smooth_scroll_delta;
 
 	/* State variables for handling match checks. */
 	char *match_contents;
@@ -334,10 +367,7 @@ struct _VteTerminalPrivate {
 	 * when realizing. */
 	struct _vte_draw *draw;
 
-	gboolean palette_initialized;
-	gboolean highlight_color_set;
-	gboolean cursor_color_set;
-	PangoColor palette[VTE_PALETTE_SIZE];
+	VtePaletteColor palette[VTE_PALETTE_SIZE];
 
 	/* Mouse cursors. */
 	gboolean mouse_cursor_visible;
@@ -394,20 +424,16 @@ struct _VteTerminalPrivate {
         /* Style stuff */
         GtkBorder inner_border;
 
-#if GTK_CHECK_VERSION (2, 91, 2)
         /* GtkScrollable impl */
         GtkAdjustment *hadjustment; /* unused */
         guint hscroll_policy : 1; /* unused */
 
         guint vscroll_policy : 1;
-#endif
 };
 
-#if GTK_CHECK_VERSION (2, 99, 0)
 struct _VteTerminalClassPrivate {
         GtkStyleProvider *style_provider;
 };
-#endif
 
 VteRowData *_vte_terminal_ensure_row(VteTerminal *terminal);
 void _vte_terminal_set_pointer_visible(VteTerminal *terminal, gboolean visible);
@@ -437,6 +463,11 @@ void _vte_terminal_cleanup_tab_fragments_at_cursor (VteTerminal *terminal);
 void _vte_terminal_audible_beep(VteTerminal *terminal);
 void _vte_terminal_visible_beep(VteTerminal *terminal);
 void _vte_terminal_beep(VteTerminal *terminal);
+PangoColor *_vte_terminal_get_color(const VteTerminal *terminal, int idx);
+void _vte_terminal_set_color_internal(VteTerminal *terminal,
+                                      int idx,
+                                      int source,
+                                      const GdkColor *color);
 
 void _vte_terminal_inline_error_message(VteTerminal *terminal, const char *format, ...) G_GNUC_PRINTF(2,3);
 

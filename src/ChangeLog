@@ -1,3 +1,2100 @@
+commit 68dece621fb183eb9f0b3105448d417852215615
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Mar 30 23:19:46 2015 +0200
+
+    emulation: Fix vertical positioning after resize in some rare cases
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=747059
+    (cherry picked from commit 41d2e152878cc35d78a4dd8feb7cad52f088cdf9)
+    
+    Conflicts:
+    	src/vte.c
+
+ doc/rewrap.txt | 10 +++++-----
+ src/vte.c      |  2 +-
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+commit 48def907eadfc5200603ebded4fb99ff324e571e
+Author: Colin Guthrie <colin@mageia.org>
+Date:   Wed Jul 23 22:44:40 2014 +0200
+
+    vte.sh: Fix tilde replacement for bash-4.3.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=733504
+    (cherry picked from commit f09439bf7d05cb81c37e3e1a8a4af71f489700ba)
+
+ src/vte.sh | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+commit 4664d7c24eb16cddf8546e5049537af12a5cb348
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Aug 4 15:09:39 2014 +0200
+
+    a11y: Fix a crash at text deletion
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=727587
+    (cherry picked from commit a20f7d2864850fa5e330b3f35f698082f97e5517)
+
+ src/vteaccess.c | 101 ++++++++++++++++++++++++++++++--------------------------
+ 1 file changed, 54 insertions(+), 47 deletions(-)
+
+commit 842ff20d13c84f35315980ca32e719d570d54f5f
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Jun 23 19:37:38 2014 +0200
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit e910848a86d42bbcffe121a2a68344e4988dd5dd
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Jun 23 19:28:26 2014 +0200
+
+    Version 0.36.3
+
+ NEWS | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+commit c33bed4f70315390195f51fe0981cf68b81a8bb3
+Author: Christian Persch <chpe@gnome.org>
+Date:   Fri Jun 13 19:13:56 2014 +0200
+
+    utils: Set some FS flags on our temp files
+    
+    Disable COW on our temp files, if the FS it's on supports it.
+    
+    (cherry picked from commit 4b4cb33957749a2f194aeec63c1b17b4acd29c02)
+
+ src/vteutils.c | 27 +++++++++++++++++++++++++--
+ 1 file changed, 25 insertions(+), 2 deletions(-)
+
+commit d4a84d4fb298235c63d5a7a74a215b27b3706b01
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sat Jun 14 10:23:54 2014 +0200
+
+    widget: Fix a drawing artifact with blinking cursor
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=731427
+    (cherry picked from commit 977375b05df4f906329177a401a2d8c00b2516d4)
+
+ src/vte.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+commit 2991e7a7d4dbac115a2ab941d4af4dc74aa05dd6
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Thu May 29 12:39:44 2014 +0200
+
+    emulation: Keep the incoming buffer on reset
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=730760
+    (cherry picked from commit 9240ed8a65549300840aa15fc1580f6c350ae583)
+    
+    Conflicts:
+    	src/vte.c
+
+ src/vte.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+commit 69ebde2c249dbd334664f590de32daa5d087dce6
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sat May 17 13:45:09 2014 +0200
+
+    iconv: Fix the UTF-8 decoder when a NUL byte is encountered
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=730220
+    (cherry picked from commit 95879ab9b4aa113d7877e4d080fbb7b403963f3b)
+
+ src/vteconv.c | 85 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 83 insertions(+), 2 deletions(-)
+
+commit 5c682b774b19755b922ff6f932c55cb77036c92a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri May 16 13:33:01 2014 +0200
+
+    iconv: Fix a broken unittest
+    
+    (cherry picked from commit 8a17c8ee4474b84414e5ed35a604ff3abfbe3fbe)
+
+ src/vteconv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit ef06c336f28d5c4472a886f4374631cf6e0ad4f8
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri May 16 13:25:39 2014 +0200
+
+    iconv: Fix broken _vte_conv_utf8_strlen
+    
+    (cherry picked from commit 3287a66f02edd3f26e5da708d1c3d36b3418a23c)
+
+ src/vteconv.c | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+commit 491a08b59b23912134732687389c63252b67f934
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon May 26 13:14:44 2014 +0200
+
+    widget: Speed up scrolling in very large terminals
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=730732
+    (cherry picked from commit b8db6a28b9b809a643268941a3bd1b0dcff70198)
+
+ src/vte.c | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+commit 781480fe81cca3b66e02bdb9d34bbacc822f3496
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon May 26 12:54:55 2014 +0200
+
+    widget: Fix a rare display update problem after a terminal reset
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=730599
+    (cherry picked from commit 8fbb9722099fa4af01cfb16919fe61282a7aa9ab)
+
+ src/vte.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+commit 641ed539fab30f2fbcf88a8faab61f108e7df012
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon May 26 12:19:14 2014 +0200
+
+    widget: Set the ring's in-memory size on terminal reset
+    
+    (cherry picked from commit 2249f514c877041dd291a717360cd6e2747103f5)
+    
+    Conflicts:
+    	src/vte.c
+
+ src/vte.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 6f137882264fde4ad67e017113b1288d1eed4c85
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun May 25 19:27:51 2014 +0200
+
+    widget: Make sure to always set the style
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=727614
+    (cherry picked from commit 7a8256af09173496a09afec90249a9875c742896)
+    
+    Conflicts:
+    	src/vte.c
+
+ src/vte.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit b2f437c67847647e892495f9b1656ac29a6bdc86
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Thu May 22 22:28:59 2014 +0200
+
+    widget: Immediately resize the ring on app-initiated window resize
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=647466
+    (cherry picked from commit 4425ee077bbedb1337e2e7d332e1137e68fd4adf)
+
+ src/vte.c | 37 ++++++++++++++++---------------------
+ 1 file changed, 16 insertions(+), 21 deletions(-)
+
+commit 208b8bfa1884aea09a6aa8f4a046067d4f78f46f
+Author: Colin Gibbs <colin@gibbsonline.net>
+Date:   Mon May 19 15:27:40 2014 +0200
+
+    widget: Fix disappearing mouse pointer
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=725342
+
+ src/vte.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 1f764f94d1f9798e3a47365cb4a215c06b9aef8a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed May 14 17:09:10 2014 +0200
+
+    emulation: Fix escape sequences of keypad Home and End (take 2)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=600659#c63
+    (cherry picked from commit 691669ac5166da1104eb584bc43a70a9c7a924d7)
+
+ src/keymap.c | 18 ++++++++----------
+ 1 file changed, 8 insertions(+), 10 deletions(-)
+
+commit 1605e12adbdcd7c91a73f69d0d9aa0f418a3c0af
+Author: Christian Persch <chpe@gnome.org>
+Date:   Wed May 14 19:48:34 2014 +0200
+
+    build: Dist box_drawing_generate.sh
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=730140
+    (cherry picked from commit ffa42d66a73c66bbda25df5d84b95717be6b1efa)
+
+ src/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 908db36da9ac544045612d8a019dc18f8d74400f
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon May 12 20:26:05 2014 +0200
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 8450ba88fd6198192074ee42ba4f3a58f34ed925
+Author: Debarshi Ray <debarshir@gnome.org>
+Date:   Mon May 12 18:58:26 2014 +0200
+
+    widget: Update background when opacity is changed
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=730023
+
+ src/vte.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 47b7bb7457ded44f43c69488595e379a602de46d
+Author: Debarshi Ray <debarshir@gnome.org>
+Date:   Fri May 9 19:43:55 2014 +0200
+
+    vteapp: Unbreak transparency
+    
+    Mark the window as app-paintable. Otherwise GTK+ will try to optimize
+    by setting an opaque region for the whole window (gtk+ 3c2c3ab6).
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=729884
+
+ src/vteapp.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 0117dcd74c804e37c93bdf99f29207b5e786a46b
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue May 6 13:24:46 2014 +0200
+
+    emulation: Change bracketed paste mode to per-terminal
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=729533
+    (cherry picked from commit 07a3f97381112dad889b99211ce655b84858ed66)
+
+ src/vte-private.h | 2 +-
+ src/vte.c         | 8 ++++----
+ src/vteseq.c      | 2 +-
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+commit b64481e9ad51b49bbbbcbf603582ec66a4a3a5f6
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Apr 27 10:13:41 2014 +0200
+
+    docs: Fix licence header
+    
+    The library is LGPL, and the docs include the docs comments from the library
+    sources, so it's logical that the docs licence should be LGPL too. The docs
+    already said so in the text, but the licence header in the comments said GFDL.
+    Since I'm the only one who's contributed to the xml file itself, I just
+    changed this to LGPL, too.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=728795
+    (cherry picked from commit 957a85b11750362a265526d63ca1423ae453cf3b)
+
+ doc/reference/vte-docs.xml | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+commit 863bb1c607efbbebfad58316f106503ee0e389dc
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Apr 26 17:50:57 2014 +0200
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 6e0aacddda101101dff84dda155f14fe91ace8ae
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Apr 26 17:35:53 2014 +0200
+
+    Version 0.36.1
+
+ NEWS | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+commit 332de096887d45087a69103dfcda340414274348
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 24 19:57:42 2014 +0100
+
+    ring: Fix compiler warnings
+    
+    (cherry picked from commit f275e61df7deeb93bf47c99ce24a46a2ffdd559d)
+
+ src/ring.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+commit e3cb765f9bbe724149efe5753f600b5f3aed4879
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Apr 26 09:59:28 2014 +0200
+
+    widget: Set style background on realize
+    
+    vte analogue to https://bugzilla.gnome.org/show_bug.cgi?id=692988
+    
+    (cherry picked from commit 16bda596da75356686991da2ee75e5f9f501cdac)
+
+ src/vte.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 9955d5734ee7489d2a29f039d930bd16bf08f758
+Author: Dirgita <dirgitadevina@gmail.com>
+Date:   Wed Apr 23 09:47:23 2014 +0000
+
+    Updated Indonesian translation
+
+ po/id.po | 54 ++++++++++++++++++++++++++++--------------------------
+ 1 file changed, 28 insertions(+), 26 deletions(-)
+
+commit 169eaa925561145ffbcb28de454af1fbedb4bb46
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Apr 14 17:19:02 2014 +0200
+
+    widget: Initialize the color palette when the widget is initialized
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=728051
+    (cherry picked from commit f7a3c36cf36371bf0659f76cba6317c15d51a997)
+
+ src/vte-private.h |  3 +--
+ src/vte.c         | 25 ++++++++++++-------------
+ 2 files changed, 13 insertions(+), 15 deletions(-)
+
+commit d56458713b657053cea8b09d49ef69d97585a0d6
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 24 15:00:50 2014 +0100
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 6a25ed8b232ece0145d7d6bcb305fc458ed0b417
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 24 14:57:26 2014 +0100
+
+    Version 0.36.0
+
+ NEWS | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+commit bc7676cacd71c117c4c7b6aeab4cac26f8225989
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Mar 18 16:10:58 2014 +0100
+
+    doc: Add API index for highlight foreground color
+
+ doc/reference/vte-sections.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 96afeccdf6fa099af0e76f875df0ba75ffaf53ee
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Mar 18 15:26:18 2014 +0100
+
+    doc: Minor update to rewrap.txt
+
+ doc/rewrap.txt | 35 ++++++++++++++++++-----------------
+ 1 file changed, 18 insertions(+), 17 deletions(-)
+
+commit cbdb21f740a9369f61d6dbfb48f87bce9c5c9ba4
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Mar 18 14:42:23 2014 +0100
+
+    build: Do not hardcode /bin/bash
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=726604
+
+ perf/img.sh                 | 2 +-
+ perf/inc.sh                 | 2 +-
+ src/box_drawing_generate.sh | 2 +-
+ src/test-vte-sh.sh          | 4 ++--
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+commit 749e3b1c12ad4047d2b5b7200132331bd6fe15b5
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 17 22:36:55 2014 +0100
+
+    Post release version bump
+
+ configure.ac | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit e6e97b2ca4f11851d55d4a26f7645d5f38f53b7b
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 17 22:28:35 2014 +0100
+
+    Version 0.35.90
+
+ NEWS | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+commit 56ab1baaa64f2a23f25450c8682b6693c9b0329a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Mar 17 21:59:14 2014 +0100
+
+    widget: Nicer box drawing characters
+    
+    Fixes problems with the hollow box drawing characters.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=709556
+
+ src/Makefile.am             |  12 +-
+ src/box_drawing.txt         | 768 ++++++++++++++++++++++++++++++++++++++++++++
+ src/box_drawing_generate.sh |  70 ++++
+ src/vte.c                   | 474 ++++++---------------------
+ 4 files changed, 944 insertions(+), 380 deletions(-)
+
+commit 56090d8d95e51df47c59f9410416932cfd111cec
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 17 21:59:03 2014 +0100
+
+    build: Version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit ebd86b75eea99a866405e0bc29eeefd75ba3fe09
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Mar 17 19:51:12 2014 +0100
+
+    build: Fix log domain
+
+ src/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit d7e3749cdfee5d57d49bb508b05b8691b6799982
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Mar 17 14:39:51 2014 +0100
+
+    widget: Do not intercept Ctrl+F1
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=726438
+
+ src/vte.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+commit 2856a4ee3e7bf4e1b9fcdcd934bd7349eec6a2f2
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Mar 17 14:23:13 2014 +0100
+
+    perf: Add scripts to EXTRA_DIST
+
+ perf/Makefile.am | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+commit 9f2a88cc03543c2c37a896309f61c333766647ee
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun Mar 16 15:53:19 2014 +0100
+
+    build: Use consistent version check for smooth scroll
+
+ src/vte.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 0941913e97e436f262e9f711ad7516122c94b364
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun Mar 16 15:53:03 2014 +0100
+
+    build: Remove vte-gtk-compat
+
+ src/Makefile.am      |  1 -
+ src/vte-gtk-compat.h | 48 -----------------------------------------------
+ src/vte.c            | 53 ++++++++++++++++++++++++++++++----------------------
+ src/vteaccess.c      |  1 -
+ src/vtebg.c          |  1 -
+ src/vtedraw.c        |  2 +-
+ src/vtedraw.h        |  3 +--
+ 7 files changed, 33 insertions(+), 76 deletions(-)
+
+commit 1d1e56ccc3c8fc2b844e7c93e0471660a94928b1
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun Mar 16 15:52:19 2014 +0100
+
+    build: Clean up legacy signal creation leftovers
+
+ src/vte.c | 496 +++++++++++++++++++++++++++++---------------------------------
+ 1 file changed, 232 insertions(+), 264 deletions(-)
+
+commit b2f3b5a6eb5cae73bee1f116c6fd558f7314bfb4
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun Mar 16 15:51:58 2014 +0100
+
+    build: Clean up gdk keysym names
+
+ src/iso2022.c | 192 ++++++++++++++-------------
+ src/keymap.c  | 416 +++++++++++++++++++++++++++++-----------------------------
+ src/vte.c     | 104 +++++++--------
+ 3 files changed, 353 insertions(+), 359 deletions(-)
+
+commit 663cb18068c11502acd41ad6adaf94891868fd7e
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun Mar 16 15:51:03 2014 +0100
+
+    build: Remove gtk2 leftover code
+
+ src/iso2022.c        |   5 --
+ src/keymap.c         |   5 --
+ src/reflect.c        |   8 --
+ src/vte-gtk-compat.h |  32 --------
+ src/vte-private.h    |   4 -
+ src/vte.c            | 212 +--------------------------------------------------
+ src/vte.h            |  63 ---------------
+ src/vteapp.c         |  15 +---
+ src/vtebg.c          |   5 --
+ src/vtedeprecated.h  |   2 -
+ 10 files changed, 4 insertions(+), 347 deletions(-)
+
+commit 9c9a0fcf80d6b55f4afb0de1ac474d3cb7b1b99c
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sat Mar 15 15:27:16 2014 +0100
+
+    emulation: Add support for OSC 19/119 (highlight fg color) and corresponding API
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=725974
+
+ src/vte.c          | 75 ++++++++++++++++++++++++++++++++++++++++++++++++++----
+ src/vte.h          |  4 +++
+ src/vterowdata.h   |  7 ++---
+ src/vteseq-n.gperf |  6 ++---
+ src/vteseq.c       | 23 +++++++++++++++++
+ 5 files changed, 104 insertions(+), 11 deletions(-)
+
+commit 3c915ee012c0d25b376be0ba4e0037b67f7beebe
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sat Mar 15 15:22:51 2014 +0100
+
+    emulation: Use more consistent and verbose names for special purpose colors
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=725974
+
+ src/vte.c        | 72 ++++++++++++++++++++++++++++----------------------------
+ src/vterowdata.h | 12 +++++-----
+ src/vteseq.c     | 40 +++++++++++++++----------------
+ 3 files changed, 62 insertions(+), 62 deletions(-)
+
+commit be8407dbc4c669cd5c00c9ab95ade40e3b94e46d
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Mar 3 13:41:38 2014 +0100
+
+    build: Fix many compiler warnings
+
+ src/pty.c       |  6 ------
+ src/slowcat.c   |  2 +-
+ src/vte.c       | 51 +++++++++------------------------------------------
+ src/vteaccess.c |  5 -----
+ src/vteapp.c    |  5 -----
+ src/vteconv.c   |  3 ---
+ src/vteseq.c    |  8 ++------
+ 7 files changed, 12 insertions(+), 68 deletions(-)
+
+commit e102da687242aa0820225e4fe47b84869229fb63
+Author: Michal Sojka <sojkam1@fel.cvut.cz>
+Date:   Mon Mar 3 11:50:38 2014 +0100
+
+    prompt: Make zsh hook to precmd.
+    
+    Previously used chpwd hook caused the escape sequence to be printed when
+    it shouldn't be printed. For example, when user wanted to list files in
+    a directory with "(cd dir; find) > list.txt", list.txt contained not
+    only the files but also the VTE escape sequence.
+    
+    This patch changes the hook to precmd, which is invoked before
+    displaying prompt. This is the same "hook" that is used in bash.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=724982
+
+ src/vte.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 2af14ef99eb244e9fc84a80b4b64014d4299465a
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Feb 18 21:59:22 2014 +0100
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit ef5abe86eed6279be4928ac1650f022fd7f1ba89
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Feb 18 21:52:30 2014 +0100
+
+    Version 0.35.2
+
+ NEWS | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+commit 53bdd2569e943ebac2fce4f88064e3f4e529ed47
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Feb 12 22:14:04 2014 +0100
+
+    widget: Maintain selection when rewrapping, take 3
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=722635#c9
+
+ src/vte.c | 48 ++++++++++++++++++++++++++++++------------------
+ 1 file changed, 30 insertions(+), 18 deletions(-)
+
+commit 3cf7c41308e1eb9e33986474232f94d0a221501a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 24 02:05:40 2014 +0100
+
+    widget: Fix selection's padding adjustment
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=722873
+
+ src/vte.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+commit 335872efdf8bdd40efceaf306fa25b7ba8ad5725
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 24 01:34:18 2014 +0100
+
+    widget: Maintain selection when rewrapping, take 2
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=722635#c7
+
+ src/vte.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+commit 9ff56e238ec92b8982b6dacc456c2f313b548196
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 24 01:00:35 2014 +0100
+
+    widget: Maintain selection when rewrapping
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=722635
+
+ src/vte.c | 46 ++++++++++++++++++++++++++++------------------
+ 1 file changed, 28 insertions(+), 18 deletions(-)
+
+commit ccfc082df82c10fbe91848de16ba8ac45dcd5ce1
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 24 00:54:23 2014 +0100
+
+    emulation: Make OSC response use the same terminator as the query
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=722446
+
+ src/caps.c         | 44 +++++++++++++--------------
+ src/vteseq-n.gperf | 33 +++++++++++++-------
+ src/vteseq.c       | 89 ++++++++++++++++++++++++++++++++++++++++++------------
+ 3 files changed, 113 insertions(+), 53 deletions(-)
+
+commit adb2aafe5d1eeca4f19d6c10b81f9ba18415ddcd
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Jan 22 01:49:43 2014 +0100
+
+    debug: Fix segfault
+
+ src/vte.c | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+commit 1b8c6b1aac587b79476a60a5830385abc939430d
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Jan 22 00:13:51 2014 +0100
+
+    emulation: Add support for OSC 1?1[017] (fg, bg, highlight colors)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=567444
+
+ src/caps.c         | 34 +++++++++++++++++++++-----
+ src/osc            |  6 +++++
+ src/vteseq-n.gperf | 17 ++++++++++---
+ src/vteseq.c       | 70 +++++++++++++++++++++++++++++++++++++++++++++++-------
+ 4 files changed, 110 insertions(+), 17 deletions(-)
+
+commit f957cd94c3057965bc8d74d0811252ff9dbb9894
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 21 00:41:22 2014 +0100
+
+    emulation: Add support for OSC 104 (reset colors)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=640040
+
+ src/caps.c         |  4 ++++
+ src/osc            |  2 ++
+ src/vteseq-n.gperf |  1 +
+ src/vteseq.c       | 26 ++++++++++++++++++++++++++
+ 4 files changed, 33 insertions(+)
+
+commit b7c7417127521fbf6639ba78d5d32f1fe27a28c9
+Author: Kevin Goodsell <kevingoodsell.lists@gmail.com>
+Date:   Tue Jan 21 00:39:38 2014 +0100
+
+    emulation: Add support for OSC 112 (reset cursor color)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=640040
+
+ src/caps.c         | 2 ++
+ src/osc            | 1 +
+ src/vteseq-n.gperf | 1 +
+ src/vteseq.c       | 7 +++++++
+ 4 files changed, 11 insertions(+)
+
+commit c7a76a9f87bed3760f0922a7181d337c55dec121
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 21 00:37:08 2014 +0100
+
+    emulation: Refactor color palette handling
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=640040
+
+ src/vte-private.h |  23 ++++----
+ src/vte.c         | 159 ++++++++++++++++++++++--------------------------------
+ src/vteseq.c      |  18 ++++---
+ 3 files changed, 87 insertions(+), 113 deletions(-)
+
+commit de31abd9d5eb101530f6e9096c6e930230cb1f6d
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 17 03:40:14 2014 +0100
+
+    widget: Don't try to allocate arbitrary amount of memory.
+
+ src/vte.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 3dead44f0ef831bf54cbcdf86d59c104c88f2db0
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 17 03:36:36 2014 +0100
+
+    widget: Fix off-by-one in allowed palette size.
+
+ src/vte.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 6b524d4aad8665f36ce106304cc6d9e7d14dcf8c
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Jan 13 20:28:26 2014 +0100
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit ded1bd783d50601b4ca524724b32f358c86ae289
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Jan 13 20:07:25 2014 +0100
+
+    Version 0.35.1
+
+ NEWS | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+commit b1a3c3603ce919788e59503ff77ba57116315a76
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Jan 13 18:15:23 2014 +0100
+
+    emulation: Fix standout handling (typo introduced by true color support)
+
+ src/vte.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 2b4f4f1eea9dd87e27142ee02c973ce7ae9afd3c
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Jan 13 17:42:49 2014 +0100
+
+    Fix performance regression with only one active terminal widget.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=721944
+
+ src/vte.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit b8a021330c0375ef6411f9abf2e4f717d0a5fb1d
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Jan 13 17:29:26 2014 +0100
+
+    Allow ":" as subparameter delimiter in SGR color sequences.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=685759
+
+ src/table.c  |  38 ++++++++++++---
+ src/vteseq.c | 155 +++++++++++++++++++++++++++++++++++++++++------------------
+ 2 files changed, 139 insertions(+), 54 deletions(-)
+
+commit a5fe6998b9fdcc9892a3dc8f53e70a5cf273d059
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Fri Jan 10 02:44:39 2014 +0100
+
+    emulation: Restore colors upon terminal reset.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=672210
+
+ src/vte.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+commit c5a32b491afe783b02eec49b1f02241163ba4367
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Thu Jan 9 00:12:33 2014 +0100
+
+    emulation: Support 16 million colors
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=704449
+
+ perf/img.sh       |  71 +++++++++++++++++++++++++
+ src/vte-private.h |  36 +++++++++----
+ src/vte.c         | 155 ++++++++++++++++++++++++++++++------------------------
+ src/vterowdata.h  |  47 ++++++++++-------
+ src/vteseq.c      | 151 +++++++++++++++++++++-------------------------------
+ 5 files changed, 271 insertions(+), 189 deletions(-)
+
+commit 5cf31fcc7b12073e5ab4f49dd9c2477627547e1a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Jan 8 23:43:02 2014 +0100
+
+    license: Update to LGPL 2.1. Update FSF postal address.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=619891
+    https://bugzilla.gnome.org/show_bug.cgi?id=721522
+
+ COPYING                  | 216 +++++++++++++++++++++++++---------------------
+ acinclude.m4             |  10 +--
+ gnome-pty-helper/COPYING | 217 ++++++++++++++++++++++++++---------------------
+ src/buffer.h             |  18 ++--
+ src/caps.c               |  20 ++---
+ src/caps.h               |  20 ++---
+ src/debug.c              |  20 ++---
+ src/debug.h              |  20 ++---
+ src/dumpkeys.c           |  20 ++---
+ src/interpret.c          |  20 ++---
+ src/iso2022.c            |  20 ++---
+ src/iso2022.h            |  20 ++---
+ src/keymap.c             |  20 ++---
+ src/keymap.h             |  20 ++---
+ src/matcher.c            |  20 ++---
+ src/matcher.h            |  20 ++---
+ src/mev.c                |  20 ++---
+ src/pty.c                |  20 ++---
+ src/pty.h                |  20 ++---
+ src/reaper.c             |  20 ++---
+ src/reaper.h             |  20 ++---
+ src/reflect.c            |  20 ++---
+ src/ring.c               |  20 ++---
+ src/ring.h               |  20 ++---
+ src/slowcat.c            |  20 ++---
+ src/table.c              |  20 ++---
+ src/table.h              |  20 ++---
+ src/test-vte-sh.sh       |  14 +--
+ src/trie.c               |  20 ++---
+ src/trie.h               |  20 ++---
+ src/vte-gtk-compat.h     |  22 ++---
+ src/vte-private.h        |  20 ++---
+ src/vte.c                |  20 ++---
+ src/vte.h                |  20 ++---
+ src/vte.sh               |  15 ++--
+ src/vteaccess.c          |  20 ++---
+ src/vteaccess.h          |  20 ++---
+ src/vteapp.c             |  20 ++---
+ src/vtebg.c              |  20 ++---
+ src/vtebg.h              |  20 ++---
+ src/vteconv.c            |  20 ++---
+ src/vteconv.h            |  20 ++---
+ src/vtedeprecated.h      |  20 ++---
+ src/vtedraw.c            |  20 ++---
+ src/vtedraw.h            |  20 ++---
+ src/vteint.h             |  20 ++---
+ src/vtepty-private.h     |  16 ++--
+ src/vtepty.h             |  16 ++--
+ src/vteregex.c           |  20 ++---
+ src/vteregex.h           |  20 ++---
+ src/vterowdata.c         |  20 ++---
+ src/vterowdata.h         |  20 ++---
+ src/vteseq.c             |  20 ++---
+ src/vtestream-base.h     |  20 ++---
+ src/vtestream-file.h     |  20 ++---
+ src/vtestream.c          |  20 ++---
+ src/vtestream.h          |  20 ++---
+ src/vtetc.c              |  20 ++---
+ src/vtetc.h              |  20 ++---
+ src/vtetree.c            |  20 ++---
+ src/vtetree.h            |  20 ++---
+ src/vteunistr.c          |  20 ++---
+ src/vteunistr.h          |  20 ++---
+ src/vteutils.c           |  20 ++---
+ src/vteutils.h           |  20 ++---
+ src/vteversion.h.in      |  20 ++---
+ src/xticker.c            |  20 ++---
+ 67 files changed, 870 insertions(+), 834 deletions(-)
+
+commit a118544044e064ea1d3f36e959d961845ec9c317
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Jan 8 23:38:24 2014 +0100
+
+    Emulation: Emit sequences for Shift+PageUp and friends on alternate screen.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=643233
+
+ src/vte.c | 18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+commit 67e9cf6fe71a9dd65592e5e587b6f48ae5879ea7
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 20:23:17 2014 +0100
+
+    drawing: Make the cursor over a tab character only a single cell wide
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=691972
+
+ src/vte.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit bda961d71e34bc25f553b529f74af83e3fe04ce3
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 20:18:39 2014 +0100
+
+    doc: Add ambiguous.txt to EXTRA_DIST
+
+ doc/Makefile.am | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit f6cc6726745c3a4f79ba70152d0867dd3bfc537d
+Author: Paul Bolle <pebolle@tiscali.nl>
+Date:   Tue Jan 7 20:02:11 2014 +0100
+
+    drawing: Make underline cursor's height equal the i-beam's width
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=586950
+
+ src/vte.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+commit f7b72a59e1cef353c9b287dbf030c312177e4e16
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:49:21 2014 +0100
+
+    Emulation: Fix escape sequence of Ctrl+Alt+Space
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710349
+
+ src/keymap.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit 551bbddae4f7e476e9fd77c9b5908b058d624b3b
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:47:13 2014 +0100
+
+    Emulation: Fix escape sequences of Begin (numpad 5) with modifiers
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=600659
+
+ src/keymap.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+commit 3db0f20fc475c5f82db9de4c7a5f6feb4f9130d8
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:45:54 2014 +0100
+
+    Emulation: Fix escape sequences of Home and End, with and without modifiers
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=600659
+
+ src/keymap.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+commit e0aafaaccf11696939e35b891cad5d43663fabf5
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:44:36 2014 +0100
+
+    Emulation: Fix escape sequences of numpad math operators with modifiers
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=600659
+
+ src/keymap.c | 39 ++++++++++++++++++++++++++-------------
+ 1 file changed, 26 insertions(+), 13 deletions(-)
+
+commit f582d097c687daec99182844df744cfcfa60f7ec
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:43:19 2014 +0100
+
+    Emulation: Fix escape sequences of F1-F4 with modifiers
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=600659
+
+ src/keymap.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+commit 01cbea907972a8676b0b1065d59ee247e5cb253f
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:41:23 2014 +0100
+
+    Mention rewrap in NEWS
+
+ NEWS | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 2e4d2814140cbeb6267871e6b66f9571e7d5b8c7
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Jan 7 19:35:56 2014 +0100
+
+    iconv: Don't drop incomplete UTF-8 before control characters
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=720977
+
+ src/iso2022.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+commit c67472e1ee35e2cd8fae7c511d20af84832e73bd
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Dec 25 19:36:00 2013 +0100
+
+    iconv: UTF-8 decoding cleanup
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=720977
+
+ src/vteconv.c | 27 +++------------------------
+ 1 file changed, 3 insertions(+), 24 deletions(-)
+
+commit 8f4a5533586c12d46169cf7e184c9ade28f713f7
+Author: Christian Persch <chpe@gnome.org>
+Date:   Fri Dec 20 21:48:47 2013 +0100
+
+    doc: Remove ancient copy of xterm sequences doc
+    
+    The master copy in xterm is much more expansive and up to date.
+
+ doc/Makefile.am |    7 -
+ doc/ctlseqs.ms  | 1647 -------------------------------------------------------
+ 2 files changed, 1654 deletions(-)
+
+commit a87c4ee534191f6f128381555e3e975daec8a41b
+Author: Christian Persch <chpe@gnome.org>
+Date:   Fri Dec 20 21:48:21 2013 +0100
+
+    doc: Add rewrap.txt to EXTRA_DIST
+
+ doc/Makefile.am | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+commit a6a370872c592db2e1c1166a005688d71db3b4c0
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Dec 16 22:23:15 2013 +0100
+
+    widget: Add pref to control rewrapping on resize
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=336238
+
+ doc/reference/vte-sections.txt |  2 ++
+ src/vte-private.h              |  1 +
+ src/vte.c                      | 70 ++++++++++++++++++++++++++++++++++++++++--
+ src/vte.h                      |  2 ++
+ src/vteapp.c                   |  9 +++++-
+ 5 files changed, 81 insertions(+), 3 deletions(-)
+
+commit 01e244183b7d8c5b3ef2a80546fe82b314a5883a
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Dec 16 22:19:46 2013 +0100
+
+    docs: Add API index for symbols new in 0.36
+
+ doc/reference/vte-docs.xml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+commit 20ac1c5b0306f6d6e8d2a87c61d8c20d782b6c12
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Dec 1 18:05:04 2013 +0100
+
+    emulation: Fix function key mode setting
+    
+    These are boolean values, not pointers!
+
+ src/vteseq.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit f231c86e2aedb1bc51a166a18fb6f372120ab3fb
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Dec 1 18:02:30 2013 +0100
+
+    emulation: Make DECSET handler struct static
+    
+    By storing just the offsets, we can make the struct static and const.
+
+ src/vteseq.c | 255 ++++++++++++++++++++++++++++++++---------------------------
+ 1 file changed, 137 insertions(+), 118 deletions(-)
+
+commit 6ff4d0936ccc819b610f80bd12cb12bbcfcc2e6b
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Dec 1 14:53:09 2013 +0100
+
+    emulation: Improve DECSET handler
+    
+    Use bsearch instead of a linear search.
+
+ src/vteseq.c | 108 +++++++++++++++++++++++++++++++++--------------------------
+ 1 file changed, 60 insertions(+), 48 deletions(-)
+
+commit 08c2ac7a4f9a9f89a268b1c55cb0b2b78be26c38
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Dec 1 13:18:04 2013 +0100
+
+    emulation: Remove duplicate sequence entry
+    
+    For commit b38428322ee2c99b9ef5da9208533b817fcf94fe.
+
+ src/vteseq.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit 740c4d9ef36ba59c7330bc74b91ee85d55da6623
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Nov 18 21:59:02 2013 +0100
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 21ef2c5b3e9c50ef27149f4ccee08d9986db3c60
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Nov 18 21:43:51 2013 +0100
+
+    Version 0.35.0
+
+ NEWS | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+commit b38428322ee2c99b9ef5da9208533b817fcf94fe
+Author: Michele Baldessari <michele@acksyn.org>
+Date:   Mon Nov 18 21:26:45 2013 +0100
+
+    emulation: Support DECCOLM mode to switch between 80 and 132 columns
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=4993
+
+ src/vte-private.h |  1 +
+ src/vte.c         |  3 +++
+ src/vteseq.c      | 40 ++++++++++++++++++++++++----------------
+ 3 files changed, 28 insertions(+), 16 deletions(-)
+
+commit a2a819591dfbbb750730caa2fd8b32e87b521fb6
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sat Oct 26 14:49:35 2013 +0200
+
+    emulation: Reset attributes when entering alternate screen
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=709930
+
+ src/vteseq.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit b04ccce0ba4c29a7f09c407de1f601a297b26ea6
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Thu Oct 24 15:18:16 2013 +0200
+
+    emulation: Fix ESC E at the bottom of the screen
+    
+    ESC E needs to scroll, if necessary.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=693013
+
+ src/vteseq.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 4358250397456b033c88241e71ec8c3b96f0f339
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Oct 23 00:45:57 2013 +0200
+
+    emulation: Avoid lines filled up with spaces in the restricted scrolling area
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=336238#c88
+
+ src/vte.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+commit 01380dae776a560c61aecb95d06be5bf8ccae5f4
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Oct 23 00:35:30 2013 +0200
+
+    widget,emulation: Rewrap the lines when the window is resized
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=336238
+
+ doc/rewrap.txt    | 447 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/ring.c        | 426 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ src/ring.h        |   5 +
+ src/vte-private.h |   4 -
+ src/vte.c         | 104 +++++++++----
+ src/vteseq.c      |   4 +-
+ 6 files changed, 951 insertions(+), 39 deletions(-)
+
+commit c004921c26eec0183ef2f07ee76803efb3d9eeb1
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Oct 23 00:27:26 2013 +0200
+
+    ring: Fix stream reset
+    
+    Change suspicios code: resetting row_stream to 0 is fishy, I really do think
+    it needs to be set to ring->writable.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=336238#c75
+
+ src/ring.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit 7a201c651251b483a026eae60c1f48cc27da7abe
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Oct 23 00:22:42 2013 +0200
+
+    ring,stream: Refactor the interface between the ring and the stream
+    
+    Refactor and simplify the interface between ring and vte-stream; this is
+    required for the forthcoming rewrapping feature. Paging is now a concept
+    private to vte-stream. Instead of telling when to turn page, the ring now
+    advances the tail of the streams, and vte-stream does paging on its own
+    based on this information.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=336238#c74
+
+ src/ring.c           | 36 ++++++++++++------------------------
+ src/ring.h           |  1 -
+ src/vtestream-base.h | 14 ++++++--------
+ src/vtestream-file.h | 18 ++++++++++--------
+ src/vtestream.h      |  9 ++-------
+ 5 files changed, 30 insertions(+), 48 deletions(-)
+
+commit 5fc57fc8e2feb0cd8e99f97ca4b25fee5eba2f06
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Oct 23 00:04:26 2013 +0200
+
+    widget: Remove obsolete code
+    
+    Remove legacy "Smooth (Slow) Scroll (DECSCLM)" code leftover.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710426#c4
+
+ src/vte-private.h | 1 -
+ src/vte.c         | 2 --
+ src/vteseq.c      | 5 -----
+ 3 files changed, 8 deletions(-)
+
+commit 7efb04fbcec9a39512847204d75350fb0b119c9f
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Wed Oct 23 00:02:00 2013 +0200
+
+    widget: Support for smooth scrolling
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710426
+
+ src/vte-private.h |  1 +
+ src/vte.c         | 86 +++++++++++++++++++++++++++++++++----------------------
+ src/vteseq.c      | 22 ++++++++++----
+ 3 files changed, 69 insertions(+), 40 deletions(-)
+
+commit bd03247ac0be93a9666e3091b9c12b6ad2ae74e0
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:59:47 2013 +0200
+
+    emulation: Fix background when bottom row is scrolled upwards
+    
+    Make scrolling the bottom row upwards not fill this row with the
+    background color. Only the new empty bottom line should be filled.
+    
+    To reproduce, run
+    
+    $ echo -e '\e['$LINES'H\e[43mBottom row'; sleep 100
+    
+    When the row containig the text "Bottom row" gets scrolled up by 1, it was
+    filled with the background color in vte, but not in xterm.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710486
+
+ src/vte.c | 7 -------
+ 1 file changed, 7 deletions(-)
+
+commit bba3a71948daea9f95e6fdf1be11ed2a65dddf5b
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:58:40 2013 +0200
+
+    emulation: Fix the scrollbar position with restricted scrolling
+    
+    To reproduce, produce at least a screenful of text so that the scrollbar is
+    active. Then enable restricting scrolling, with the upper bound being the
+    topmost row, e.g. echo -e '\e[1;15r'. Now produce more output so that the
+    cursor hits the boundary at the 15th row and the content starts scrolling.
+    The scrollbar starts wandering upwards, though it should stay at the bottom.
+    When trying to scroll by Shift+PageUp or by dragging the scrollbar, suddenly
+    everything jumps back to normal.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710488
+
+ src/vte.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit 8c65377993b110d124cbb8503110439b633ea39a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:57:24 2013 +0200
+
+    emulation: Reset restricted scrolling on window resize
+    
+    Xterm disables restricted scrolling mode on window resize. This pretty much
+    makes sense, since we have no clue how the application wishes to continue
+    restricting the scrolling (counting the number of lines from the top or from
+    the bottom).
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710484
+
+ src/vte.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 98b54527c802620a5951a615fe6ae21ffc19a171
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:56:05 2013 +0200
+
+    emulation: Fix restricted scrolling with a short ring
+    
+    Fixes setting restrict scrolling with the upper bound being row 1 not working.
+    To test, run "echo -e '\e[1;15r'"  immediately before the terminal starts
+    scrolling; before this patch this had no effect.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710483
+
+ src/vteseq.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+commit 2f4378d6a25dc4985efddcacf0b298fbc10b5c7a
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:54:24 2013 +0200
+
+    Don't fake cursor keys on normal screen with restricted scrolling.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=710481
+
+ src/vte.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+commit 105f2c5ffcdc251ddaa7e5b06287d3d31b6504fe
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:39:12 2013 +0200
+
+    emulation: Allow the terminal application to consume right button click events
+    
+    This is necessary for gnome-terminal to deliver a right click to applications
+    which are interested in mouse events, and pop up the menu otherwise.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=13299
+
+ src/vte.c | 55 ++++++++++++++++++++++++++++++++++++++-----------------
+ 1 file changed, 38 insertions(+), 17 deletions(-)
+
+commit 3d22a006b6d72dccae6083b3c485c8cdaca76d29
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Tue Oct 22 23:37:50 2013 +0200
+
+    widget,emulation: Separate application palette from terminal palette
+    
+    Make colors set by escape sequences have higher precedence than those set via
+    API calls.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=705985
+
+ src/vte-private.h |  8 +++++-
+ src/vte.c         | 73 ++++++++++++++++++++++++++++++++++++++++++-------------
+ src/vteseq.c      |  4 +--
+ 3 files changed, 65 insertions(+), 20 deletions(-)
+
+commit 88e8e89560a62d0981ce2b18974a230d0a07dbdd
+Author: Micah Cowan <micah@cowan.name>
+Date:   Tue Oct 22 23:30:43 2013 +0200
+
+    widget: Fix invalidation region
+    
+    When the sequence handler moves the cursor into the restricted scrolling region,
+    the bbox needs to be reset, too.
+    Fixes glitches with interspersing writes to the bottom line with scrolls of the
+    upper region, and also fixes missing screen redraws when using mosh.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=542087
+    https://bugzilla.gnome.org/show_bug.cgi?id=686097
+
+ src/vte.c | 28 +++++++++++++++++++++++-----
+ 1 file changed, 23 insertions(+), 5 deletions(-)
+
+commit d9421112ee69180b18b7f342d7acc7b1bc1b73c3
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Nov 16 21:29:20 2013 +0100
+
+    widget: Ignore our own deprecation
+
+ src/vte.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 289b9fc98442b4bf5b58b0d2f2097072a0cbf9bd
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Nov 16 21:27:38 2013 +0100
+
+    build: Suppress glib and gtk deprecation warnings
+
+ src/Makefile.am | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+commit 513c60e23e4cb3cdd4903936073993e9eae4a49f
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Oct 20 22:30:00 2013 +0200
+
+    build: Ignore deprecations
+    
+    It's just cluttering the output too much, and all of these are already fixed
+    on vte-next.  For this branch, just ignore the deprecations.
+
+ src/Makefile.am |  2 ++
+ src/vte.c       | 12 ++++++++++++
+ src/vteapp.c    | 10 +++++++++-
+ 3 files changed, 23 insertions(+), 1 deletion(-)
+
+commit 14022429be328c448fa9b515c4f29f0432289e83
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Oct 20 22:13:50 2013 +0200
+
+    vteapp: Default to infinite scrollback
+
+ src/vteapp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit defec8201afb6bd86d6d7c5f6004347278a26ac6
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Oct 20 22:09:27 2013 +0200
+
+    widget: Increase default scrollback
+
+ src/vte-private.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit b3c49c5d1f2d939b37bbcea4b1793cb7d224b6d9
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sat Oct 19 22:56:59 2013 +0200
+
+    drawing: Fix drawing of the n-eights block characters
+    
+    Make the n-eights block characters align with each other and the half
+    block characters as well.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=709584
+
+ src/vte.c | 57 +++++++++++++++++++++++++++------------------------------
+ 1 file changed, 27 insertions(+), 30 deletions(-)
+
+commit 28eeba30fffcac7720b9e0d349887780dced2dc9
+Author: Christian Persch <chpe@gnome.org>
+Date:   Thu Oct 17 22:54:51 2013 +0200
+
+    drawing: Fix drawing of U+2594 to align with U+2587
+    
+    The upper ⅛ block was misaligned with the lower ⅞ block.
+    
+    This also fixes part of https://bugzilla.gnome.org/show_bug.cgi?id=709584
+
+ src/vte.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit 0e24dccc8df3cc90beec14a163b66c984e9cd6e7
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Thu Oct 17 22:12:26 2013 +0200
+
+    drawing: doc: Add block characters to test file
+
+ doc/boxes.txt | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit df01bb02c3ec02f1b35bc577db77772c2f591b23
+Author: Christian Persch <chpe@gnome.org>
+Date:   Thu Oct 17 21:03:36 2013 +0200
+
+    drawing: Make round box drawing characters nicer
+    
+    Replace the Bézier curves with circle arcs plus straight segments.
+    
+    Based on a patch by Egmont Koblinger.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=709692
+
+ src/vte.c | 34 +++++++++++++++++++++++++++++-----
+ 1 file changed, 29 insertions(+), 5 deletions(-)
+
+commit ebb0b00f08b1ffbc0c6f261c75432cb46e865223
+Author: Antoine Jacoutot <ajacoutot@gnome.org>
+Date:   Tue Oct 15 13:21:15 2013 +0200
+
+    portability: protect O_NOATIME
+    
+    The O_NOATIME open() flag is only available on Linux, so unbreak building
+    by protecting it with an ifdef.
+
+ src/vteutils.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 67a6928092d0768a76280be6d0384d41b65c86b2
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Oct 14 21:24:20 2013 +0200
+
+    Post branch version bump
+
+ configure.ac | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit 94123d6c2d1401a4d383cb0d990309bb154b243c
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Oct 14 21:16:52 2013 +0200
+
+    docs: Fix build
+    
+    Remove (skip) annotation which breaks check-doc-syntax check; the symbol
+    is already hidden from the introspection scanner anyway.
+
+ src/vte.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 7c3387669f915d21bfc5f228adb9480c0db2e493
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Oct 14 21:06:17 2013 +0200
+
+    Version 0.34.9
+
+ NEWS | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+commit 9384685e72cebff9389a331f225dd18333878d74
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Sun Oct 13 19:59:02 2013 +0200
+
+    docs: Improve graphic characters test file
+    
+    Make it contain all box drawing and block element characters.
+
+ doc/boxes.txt | 68 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 68 insertions(+)
+
+commit 4e2f4a175b8cf44621832db1cb3d55f48145e272
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Oct 12 12:14:09 2013 +0200
+
+    utils: Remove unneeded define
+    
+    This part of the code is linux only anyway.
+
+ src/vte.c      | 4 ++--
+ src/vteutils.c | 6 +-----
+ 2 files changed, 3 insertions(+), 7 deletions(-)
+
+commit 9cec9a3c871c0e52058d52dc8bb7d3ec03a48305
+Author: Victor Ibragimov <victor.ibragimov@gmail.com>
+Date:   Thu Oct 10 17:03:24 2013 +0500
+
+    Tajik translation added
+
+ po/LINGUAS |  1 +
+ po/tg.po   | 87 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 88 insertions(+)
+
+commit 9c9f1451f37864f18e711c348f6335a22e7c4c4d
+Author: Christian Persch <chpe@gnome.org>
+Date:   Thu Oct 3 14:34:49 2013 +0200
+
+    prompt: Set LC_ALL instead of LANG
+    
+    LC_ALL and LC_* override LANG, so if the user has any of them set,
+    __vte_urlencode would give the wrong output.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=709354
+
+ src/vte.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 9f8c1b88dcd880c2d9e78c93521ee755560a9275
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Sep 30 23:00:09 2013 +0200
+
+    emulation: Add support for DEC 1007 to set the alternate scroll mode
+    
+    By default, the mouse wheel sends cursor up/down keycodes in the
+    alternate screen. This adds an escape sequence (DEC 1007) that allows
+    turning this off (and on again).
+    
+    For compatibility with ubuntu's ******** patched vte, also add a
+    (deprecated, skip) public API that has the expected name but does nothing.
+    
+    Based on patches from ubuntu, and Egmont Koblinger.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=518405
+    https://bugzilla.gnome.org/show_bug.cgi?id=709060
+
+ src/vte-private.h   |  1 +
+ src/vte.c           | 24 ++++++++++++++++++++++--
+ src/vtedeprecated.h |  3 +++
+ src/vteseq.c        |  5 +++++
+ 4 files changed, 31 insertions(+), 2 deletions(-)
+
+commit ed5adb65a132b1c0e5054618fc989f76955a7e00
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Mon Sep 30 00:25:14 2013 -0400
+
+    [stream] Use unlocked stdio when available
+
+ configure.ac         | 2 +-
+ src/vtestream-file.h | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+commit b959b86bdb5759152328ff1b99ac956ba4189a77
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 21:32:51 2013 -0400
+
+    [stream] Add a stdio-based buffered implementation
+    
+    Should be fairly solid, though more testing will help.
+    The buffering in stdio makes most of the syscalls go away.
+    Most remaining are the lseek() syscalls caused by fseek()
+    calls for when moving backward in the buffer.  I think
+    it's a bug in stdio to make those syscalls when the result
+    is cached anyway.  Anyway, this is a huge improvement
+    already, specially when reading the buffer forward.
+
+ src/vtestream-file.h | 177 +++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 166 insertions(+), 11 deletions(-)
+
+commit f690a497fe8c1a5f1adcac193674793da58b245f
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:48:40 2013 -0400
+
+    [stream] More fixups
+    
+    Towards an abstract file descriptor.
+
+ src/vtestream-file.h | 98 ++++++++++++++++++++++++++++++----------------------
+ 1 file changed, 56 insertions(+), 42 deletions(-)
+
+commit d17e4ba45e9b45aec6852475285702f63e241787
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:48:40 2013 -0400
+
+    [stream] More fixups
+    
+    Towards an abstract file descriptor.
+
+ src/vtestream-file.h | 70 +++++++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 53 insertions(+), 17 deletions(-)
+
+commit 272b7f42ccdb93517e06a0c8e832531fffa8714c
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:38:49 2013 -0400
+
+    [stream] Remove unused includes
+
+ src/vtestream-file.h | 4 ----
+ 1 file changed, 4 deletions(-)
+
+commit cf0c865523ea7cc6f663533d9d15cb2b6060b12a
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:37:20 2013 -0400
+
+    [stream] Finish off commit 2cf872c90d85163f297e3a0fd56866a29849e0bf
+
+ src/vtestream-file.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit 488d7a2d37ba66fbf7483a1ac7b33ee03dfdfe3f
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:31:33 2013 -0400
+
+    Bug 676075 - Incorrect scrollbar position after the "less" command
+    
+    Patch from Egmont Koblinger.
+
+ src/vte.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit 2a44325fb611d76b22ffe49722e38440a3a0e480
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:17:18 2013 -0400
+
+    [stream] Fix warnings
+
+ src/vtestream-base.h | 2 +-
+ src/vtestream-file.h | 5 ++---
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+commit 2cf872c90d85163f297e3a0fd56866a29849e0bf
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 20:13:45 2013 -0400
+
+    [stream] Use -1, not 0, as "not opened yet"
+    
+    As suggested by ChPe.
+
+ src/vtestream-file.h | 9 +++++----
+ src/vteutils.c       | 9 ---------
+ 2 files changed, 5 insertions(+), 13 deletions(-)
+
+commit 73e10d9bcf414696258dbf10245a111985311b9a
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 19:54:39 2013 -0400
+
+    [stream] Remove write_contents
+    
+    The ring will now read the stream contents and write it out itself.
+    Makes stream implementation(s) easier.
+
+ src/ring.c           | 34 +++++++++++++++++++++++++++-------
+ src/vtestream-base.h | 13 -------------
+ src/vtestream-file.h | 38 --------------------------------------
+ src/vtestream.h      |  4 ----
+ 4 files changed, 27 insertions(+), 62 deletions(-)
+
+commit 480e1ae1cb9e343663896a19df31060f3bffb7b5
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 19:39:00 2013 -0400
+
+    [stream] Add API to get start-of-page offsets
+    
+    For previous behavior of the _vte_stream_head() api, add
+    index=0 to the new function.
+
+ src/ring.c           | 8 ++++----
+ src/vtestream-base.h | 8 +++++---
+ src/vtestream-file.h | 4 ++--
+ src/vtestream.h      | 7 ++++++-
+ 4 files changed, 17 insertions(+), 10 deletions(-)
+
+commit 5ad51c95557f4e953af066b551bbd9b295c88df4
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 16:25:48 2013 -0400
+
+    Part of Bug 646098 - vte uses too many file descriptors
+    
+    Patch from Egmont Koblinger, from comment 13.
+
+ src/ring.c | 37 ++++++++++++++++++++++++++++++-------
+ src/ring.h |  4 +++-
+ src/vte.c  |  3 +++
+ 3 files changed, 36 insertions(+), 8 deletions(-)
+
+commit 6b022a603c0c582a3673e0f883366532effc784b
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Sun Sep 29 15:58:44 2013 -0400
+
+    Bug 415277 - Garbage displayed after resizing whilst using an alternate screen
+    
+    Patch from Egmont Koblinger.
+
+ src/vte.c | 140 +++++++++++++++++++++++++++++++++++---------------------------
+ 1 file changed, 80 insertions(+), 60 deletions(-)
+
+commit c80fe16c3019eeb0686023b2968199e4d84a2676
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sat Sep 28 11:38:49 2013 +0200
+
+    stream: file: Use O_TMPFILE when available
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=704705
+
+ src/Makefile.am      |  2 ++
+ src/vtestream-file.h | 17 ++++-------
+ src/vteutils.c       | 86 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/vteutils.h       | 30 ++++++++++++++++++
+ 4 files changed, 124 insertions(+), 11 deletions(-)
+
+commit a43839c166da7cc0a89bd7eb0b78b991bdff5471
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 18:18:34 2013 -0400
+
+    [stream-file] Recover from a disk-full situation
+
+ src/vtestream-file.h | 38 +++++++++++++++++++++++++-------------
+ 1 file changed, 25 insertions(+), 13 deletions(-)
+
+commit fae64189d5370681dccbe4f96c6f0a86153caa3f
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 18:09:38 2013 -0400
+
+    [stream-file] Remove another lseek
+
+ src/vtestream-file.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+commit 2e268aaef84bb9026ff98504efd7679c91ee591c
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 18:06:31 2013 -0400
+
+    Fixup commit a551b0b8686bc266a2329a3215069895d591b0e9
+
+ src/vtestream-file.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit ee3a84fe9eaea643b6b64da41fe5354e43e5dde9
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 17:43:18 2013 -0400
+
+    Bug 708496 - Lines disappear after positioning back the cursor
+    
+    Patch from Egmont Koblinger.
+
+ src/ring.c | 23 +++++++++++++++++++----
+ 1 file changed, 19 insertions(+), 4 deletions(-)
+
+commit fe79b99acf38945b124ad33c3af145d68ce8f5ff
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 17:26:58 2013 -0400
+
+    [ring] Rename variables for readability
+    
+    Patch from Egmont Koblinger.
+    
+    Part of Bug 708496 - Lines disappear after positioning back the cursor
+
+ src/ring.c | 81 +++++++++++++++++++++++++++++++++++---------------------------
+ src/ring.h |  5 ++--
+ 2 files changed, 49 insertions(+), 37 deletions(-)
+
+commit 97ca3655c77364db51be89fdfebb4028bb7a58a4
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 16:34:56 2013 -0400
+
+    [stream-file] Mark temp files NOATIME
+
+ src/vtestream-file.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit a551b0b8686bc266a2329a3215069895d591b0e9
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 16:04:36 2013 -0400
+
+    [stream-file] Bug 637275 - Use pread/pwrite() if available
+    
+    Turns syscalls in half.
+
+ configure.ac         |  5 ++++-
+ src/vtestream-file.h | 42 ++++++++++++++++++++++++++++++++----------
+ 2 files changed, 36 insertions(+), 11 deletions(-)
+
+commit 658c2d4643ec7fb0cdd1ebaedc6377c29a850d21
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 16:00:27 2013 -0400
+
+    [stream-file] Keep head value in memory
+    
+    Reduces syscalls.
+    
+    Part of Bug 637275 - Use pread/pwrite() in vtestream-file.h if available
+
+ src/vtestream-base.h |  4 ++--
+ src/vtestream-file.h | 17 ++++++++---------
+ src/vtestream.h      |  2 +-
+ 3 files changed, 11 insertions(+), 12 deletions(-)
+
+commit 6e65d90d50862ca8a9e9686b7b582f22e13e8768
+Author: Behdad Esfahbod <behdad@behdad.org>
+Date:   Fri Sep 27 15:34:27 2013 -0400
+
+    Fix resize handling
+    
+    Patch from Egmont Koblinger.  At least it's readable...
+    
+    Bug 707572 - Aborts on assertion (debug mode)
+    Bug 708213 - zsh - lots of blank space upon resizing VTE based terminals
+
+ src/debug.c |  3 ++-
+ src/debug.h |  3 ++-
+ src/vte.c   | 68 +++++++++++++++++++++++++++++++++++++++++++++++++++++--------
+ 3 files changed, 64 insertions(+), 10 deletions(-)
+
+commit 9c1df647f15739dbee8a6943aaed2b0d5a3d27c3
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Sep 17 00:11:18 2013 +0200
+
+    Post release version bump
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 90fbbbf604790c9969e4703fbfe00ee3b8f4877d
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Sep 17 00:06:29 2013 +0200
+
+    Version 0.34.8
+
+ NEWS | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+commit e34b2bbe28261e11d99f052bddfd830a8c330411
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Sep 16 23:39:46 2013 +0200
+
+    emulation: Make extended fore/background colour handling more xterm-like
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=616436
+
+ src/vte-private.h | 11 ++++++---
+ src/vte.c         | 39 +++++++------------------------
+ src/vteseq.c      | 70 +++++++++++++++++++++++++++++++++++++++++++++++--------
+ 3 files changed, 76 insertions(+), 44 deletions(-)
+
+commit e0fdec86f735b6fd87e911c16ef166dfe0693bc9
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Sep 16 23:09:10 2013 +0200
+
+    vteapp: Disable transparency by default
+    
+    This is actually a bug in the vte widget, which should only use bg_opacity
+    when bg_transparent is TRUE, but since this feature is deprecated anyway,
+    there's no point wasting any time fixing this in the widget.
+
+ src/vteapp.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+commit ba74252d91898e5e03e16daa888d09797ac274fd
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Sep 16 23:02:09 2013 +0200
+
+    widget: Fix sizeof error in memset
+    
+    vte.c: In function 'vte_terminal_reset':
+    vte.c:14135:16: warning: argument to 'sizeof' in 'memset' call is the same expression as the destination; did you mean to remove the addressof? [-Wsizeof-pointer-memaccess]
+              sizeof(&pvt->selection_origin));
+                     ^
+
+ src/vte.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+commit 75b06e0b5fff57e8be8d6b61b97b687291f92478
+Author: Egmont Koblinger <egmont@gmail.com>
+Date:   Mon Sep 16 22:53:24 2013 +0200
+
+    drawing: Interrupt attribute runs at graphic characters
+    
+    Graphic characters are drawn individually and directly, so they should interrupt
+    a run of cells of the same attributes.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707221
+
+ src/vte.c | 17 +++--------------
+ 1 file changed, 3 insertions(+), 14 deletions(-)
+
+commit c8b374c41f2df26d8eb5bd79517017f9f0d9f2d0
+Author: Christian Persch <chpe@gnome.org>
+Date:   Thu Sep 12 19:14:35 2013 +0200
+
+    drawing: Guard against pathological fonts
+
+ src/vtedraw.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit 237916cbc53dad24cb63f8a6c0041634f5f8885f
+Author: Seán de Búrca <leftmostcat@gmail.com>
+Date:   Thu Aug 29 16:01:43 2013 -0600
+
+    Updated Irish translation
+
+ po/ga.po | 51 ++++++++++++++++++++++-----------------------------
+ 1 file changed, 22 insertions(+), 29 deletions(-)
+
+commit 6163192e074fb5abcc28f6a935e9d69ad1c16e88
+Author: Christian Persch <chpe@gnome.org>
+Date:   Wed Jul 31 13:36:19 2013 +0200
+
+    widget: Finish deprecation
+    
+    Remove duplicate declarations, and add G_GNUC_DEPRECATED attributes.
+
+ src/vte.h           | 13 -------------
+ src/vtedeprecated.h | 16 ++++++++--------
+ 2 files changed, 8 insertions(+), 21 deletions(-)
+
+commit 2da7058c57fd27bb8a8955b50a7a5b2ae8e6d50f
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Jul 30 15:29:48 2013 +0200
+
+    widget: Deprecate some unused functions
+    
+    We don't use these in g-t anymore, and they're already gone from -next, so
+    deprecate them here too.
+
+ doc/reference/vte-sections.txt | 18 ++++++++++--------
+ src/vte.c                      | 28 ++++++++++++++++++++++++++++
+ src/vtedeprecated.h            | 13 +++++++++++++
+ 3 files changed, 51 insertions(+), 8 deletions(-)
+
+commit 32b17c32e986e8cf7a850bc0b5d44fe73552fd5d
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Jul 30 15:33:11 2013 +0200
+
+    build: Update git.mk from upstream
+
+ git.mk | 177 ++++++++++++++++++++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 142 insertions(+), 35 deletions(-)
+
+commit 1515ea1e38777d14875aac851129046cae684f5e
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Jul 30 15:31:39 2013 +0200
+
+    build: Move configure.in to .ac
+
+ configure.in => configure.ac | 0
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+
+commit 0062b25d84cd86f04525059d1bfa1ee186acf140
+Author: Christian Persch <chpe@gnome.org>
+Date:   Tue Jul 30 15:31:26 2013 +0200
+
+    build: Use autoreconf directly
+
+ autogen.sh | 31 +++++++++----------------------
+ 1 file changed, 9 insertions(+), 22 deletions(-)
+
+commit b9c509bb5d67d188e7069b39618b210a264686a0
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Jul 7 13:05:09 2013 +0200
+
+    Post release version bump
+
+ configure.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 1eecbd3cfc961f06a9e2f19d1ab48a0c119f104e
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Jul 7 13:04:08 2013 +0200
+
+    Version 0.34.7
+
+ NEWS | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+commit 2b6efd6aa23eb576bb788c3dbba50f59895d21e0
+Author: Christian Persch <chpe@gnome.org>
+Date:   Fri Jun 28 16:42:37 2013 +0200
+
+    widget: Honour gtk-enable-primary-paste setting
+
+ src/vte.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+commit acc863ef287284e9e52c1b96d7e704d6c159d4dd
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Jun 16 22:15:10 2013 +0200
+
+    emulation: Redraw when changing colours
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=702415
+
+ src/vte-private.h |  3 +++
+ src/vte.c         | 23 ++++++++++++-----------
+ src/vteseq.c      |  4 +---
+ 3 files changed, 16 insertions(+), 14 deletions(-)
+
+commit 5231137abd0b580aa6830527190bc5bfb3c961f8
+Author: Christian Persch <chpe@gnome.org>
+Date:   Sun Jun 16 21:44:33 2013 +0200
+
+    emacs: Add .dir-locals.el
+
+ .dir-locals.el | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+commit 2a7ff01443d482bd1b30c7bd899c369a57430751
+Author: Christian Persch <chpe@gnome.org>
+Date:   Mon Jun 10 17:59:19 2013 +0200
+
+    Post release version bump
+
+ configure.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 commit 364d5b5252b7dce4358ad25fc0249ccd843155d4
 Author: Christian Persch <chpe@gnome.org>
 Date:   Sat Jun 8 13:47:00 2013 +0200
@@ -29300,8 +31397,9 @@ Date:   Sat Feb 11 05:07:23 2006 +0000
 
     vte-overrides.txt should be in CVS in fact.
 
- doc/reference/Makefile.am | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ doc/reference/Makefile.am       | 2 +-
+ doc/reference/vte-overrides.txt | 0
+ 2 files changed, 1 insertion(+), 1 deletion(-)
 
 commit a567da4ddf37ba503a5bfde9fea8d20c5fede18a
 Author: Behdad Esfahbod <behdad@src.gnome.org>
@@ -40168,8 +42266,9 @@ Date:   Wed Sep 11 06:34:27 2002 +0000
 
  Makefile.am                 |  2 +-
  autogen.sh                  |  7 +++++
+ gnome-pty-helper/ChangeLog  |  0
  gnome-pty-helper/autogen.sh | 71 ---------------------------------------------
- 3 files changed, 8 insertions(+), 72 deletions(-)
+ 4 files changed, 8 insertions(+), 72 deletions(-)
 
 commit 2149ce6c7878cb4161f882c15d29e6dc68e182a0
 Author: Nalin Dahyabhai <nalin@src.gnome.org>
@@ -42867,8 +44966,9 @@ Date:   Mon Jun 10 23:06:29 2002 +0000
     
     * po/ChangeLog: Add a changelog for translations.
 
- po/vte.pot | 8 ++++----
- 1 file changed, 4 insertions(+), 4 deletions(-)
+ po/ChangeLog | 0
+ po/vte.pot   | 8 ++++----
+ 2 files changed, 4 insertions(+), 4 deletions(-)
 
 commit 47595c278977b294fcb55665c142096c67e2e05e
 Author: Nalin Dahyabhai <nalin@src.gnome.org>
@@ -45028,10 +47128,13 @@ Date:   Mon Feb 25 17:30:22 2002 +0000
 
     Initial revision
 
+ AUTHORS                           |    0
  COPYING                           |  482 ++
+ ChangeLog                         |    0
  HACKING                           |    4 +
  Makefile.am                       |    1 +
  Makefile.in                       |  419 ++
+ NEWS                              |    0
  README                            |   40 +
  aclocal.m4                        | 4130 +++++++++++++++++
  autogen.sh                        |   11 +
@@ -45107,4 +47210,4 @@ Date:   Mon Feb 25 17:30:22 2002 +0000
  src/vte.h                         |  169 +
  src/vteapp.c                      |  104 +
  stamp-h.in                        |    1 +
- 79 files changed, 46608 insertions(+)
+ 82 files changed, 46608 insertions(+)

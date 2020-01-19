@@ -1,14 +1,14 @@
+%global apiver 2.90
+
 Name: vte3
-Version: 0.34.6
-Release: 3%{?dist}
-Summary: A terminal emulator
+Version: 0.36.4
+Release: 1%{?dist}
+Summary: Terminal emulator library
 License: LGPLv2+
 Group: User Interface/X
+URL: http://www.gnome.org/
 #VCS: git:git://git.gnome.org/vte
-Source: http://download.gnome.org/sources/vte/0.34/vte-%{version}.tar.xz
-Patch0: honey-I-shrank-the-terminal.patch
-# https://bugzilla.gnome.org/show_bug.cgi?id=663779
-Patch1: vte-alt-meta-confusion.patch
+Source: http://download.gnome.org/sources/vte/0.36/vte-%{version}.tar.xz
 # https://bugzilla.gnome.org/show_bug.cgi?id=688456
 Patch2: 0001-widget-Only-show-the-cursor-on-motion-if-moved.patch
 
@@ -21,27 +21,28 @@ BuildRequires: gobject-introspection-devel
 
 # initscripts creates the utmp group
 Requires: initscripts
+Requires: vte-profile
 
 %description
-VTE is a terminal emulator widget for use with GTK+.
+VTE is a library implementing a terminal emulator widget for GTK+. VTE
+is mainly used in gnome-terminal, but can also be used to embed a
+console/terminal in games, editors, IDEs, etc.
+
+VTE supports Unicode and character set conversion, as well as emulating
+any terminal known to the system's terminfo database.
 
 %package devel
-Summary: Files needed for developing applications which use vte
+Summary: Development files for %{name}
 Group: Development/Libraries
-Requires: %{name} = %{version}-%{release}
-Requires: ncurses-devel
+Requires: %{name}%{?_isa} = %{version}-%{release}
+Requires: ncurses-devel%{?_isa}
 
 %description devel
-The vte-devel package includes the header files and developer docs
-for the vte package.
-
-Install vte-devel if you want to develop programs which will use
-vte.
+The %{name}-devel package contains libraries and header files for
+developing applications that use %{name}.
 
 %prep
 %setup -q -n vte-%{version}
-%patch0 -p1 -b .grow-up
-%patch1 -p1 -b .alt-meta
 %patch2 -p1 -b .motion
 
 %build
@@ -52,32 +53,32 @@ LDFLAGS="$LDFLAGS -Wl,-z,relro -Wl,-z,now -pie" \
         --enable-shared \
         --disable-static \
         --with-gtk=3.0 \
-        --libexecdir=%{_libdir}/vte-2.90 \
+        --libexecdir=%{_libdir}/vte-%{apiver} \
         --without-glX \
         --disable-gtk-doc \
         --enable-introspection
-make V=1
+make %{?_smp_mflags} V=1
 
 %install
 make install DESTDIR=$RPM_BUILD_ROOT
 
-rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
+# Remove the vte.sh built here and use the one from the vte-profile package
+# instead.
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/profile.d/vte.sh
+
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 
-%find_lang vte-2.90
+%find_lang vte-%{apiver}
 
 %post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
 
-%files -f vte-2.90.lang
-%doc COPYING HACKING NEWS README
-%doc src/iso2022.txt
-%doc doc/utmpwtmp.txt doc/boxes.txt doc/openi18n/UTF-8.txt doc/openi18n/wrap.txt
-%{_sysconfdir}/profile.d/vte.sh
+%files -f vte-%{apiver}.lang
+%doc COPYING NEWS README
 %{_libdir}/*.so.*
-%dir %{_libdir}/vte-2.90
-%attr(2711,root,utmp) %{_libdir}/vte-2.90/gnome-pty-helper
+%dir %{_libdir}/vte-%{apiver}
+%attr(2711,root,utmp) %{_libdir}/vte-%{apiver}/gnome-pty-helper
 %{_libdir}/girepository-1.0
 
 %files devel
@@ -85,11 +86,14 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 %{_libdir}/*.so
 %{_libdir}/pkgconfig/*
 %{_bindir}/vte2_90
-%doc %{_datadir}/gtk-doc/html/vte-2.90
+%doc %{_datadir}/gtk-doc/
 %{_datadir}/gir-1.0
 
 
 %changelog
+* Tue May 19 2015 David King <dking@redhat.com> - 0.36.4-1
+- Update to 0.36.4 (#1222692)
+
 * Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.34.6-3
 - Mass rebuild 2014-01-24
 

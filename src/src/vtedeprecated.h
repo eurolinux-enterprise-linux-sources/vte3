@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2001,2002,2003,2009,2010 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #if !defined (__VTE_VTE_H_INSIDE__) && !defined (VTE_COMPILATION)
@@ -97,11 +97,25 @@ int vte_terminal_get_pty(VteTerminal *terminal);
 void vte_terminal_im_append_menuitems(VteTerminal *terminal,
 				      GtkMenuShell *menushell) G_GNUC_DEPRECATED;
 
-#if GTK_CHECK_VERSION (2, 91, 2)
-GtkAdjustment *vte_terminal_get_adjustment(VteTerminal *terminal);
-#endif
+GtkAdjustment *vte_terminal_get_adjustment(VteTerminal *terminal) G_GNUC_DEPRECATED;
+
+/* Background effects. */
+void vte_terminal_set_scroll_background(VteTerminal *terminal, gboolean scroll) G_GNUC_DEPRECATED;
+void vte_terminal_set_background_image(VteTerminal *terminal, GdkPixbuf *image) G_GNUC_DEPRECATED;
+void vte_terminal_set_background_image_file(VteTerminal *terminal,
+					    const char *path) G_GNUC_DEPRECATED;
+void vte_terminal_set_background_tint_color(VteTerminal *terminal,
+					    const GdkColor *color) G_GNUC_DEPRECATED;
+void vte_terminal_set_background_saturation(VteTerminal *terminal,
+					    double saturation) G_GNUC_DEPRECATED;
+void vte_terminal_set_background_transparent(VteTerminal *terminal,
+					     gboolean transparent) G_GNUC_DEPRECATED;
+void vte_terminal_set_opacity(VteTerminal *terminal, guint16 opacity) G_GNUC_DEPRECATED;
 
 G_END_DECLS
+
+void vte_terminal_set_alternate_screen_scroll(VteTerminal *terminal,
+                                              gboolean scroll) G_GNUC_DEPRECATED;
 
 #endif /* !vte_deprecated_h_included */
 

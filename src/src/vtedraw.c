@@ -1,19 +1,19 @@
 /*
  * Copyright (C) 2003,2008 Red Hat, Inc.
  *
- * This is free software; you can redistribute it and/or modify it under
- * the terms of the GNU Library General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 
@@ -368,6 +368,9 @@ font_info_measure_font (struct font_info *info)
 	/* We don't do CEIL for width since we are averaging;
 	 * rounding is more accurate */
 	info->width  = PANGO_PIXELS (howmany (logical.width, strlen(VTE_DRAW_SINGLE_WIDE_CHARACTERS)));
+        /* Guard against pathological font since width=0 causes a FPE later on */
+	info->width = MAX (info->width, 1);
+
 	info->height = PANGO_PIXELS_CEIL (logical.height);
 	info->ascent = PANGO_PIXELS_CEIL (pango_layout_get_baseline (info->layout));
 
@@ -908,7 +911,7 @@ _vte_draw_set_background_scroll (struct _vte_draw *draw,
 }
 
 void
-_vte_draw_clip (struct _vte_draw *draw, GdkRegion *region)
+_vte_draw_clip (struct _vte_draw *draw, cairo_region_t *region)
 {
 	_vte_debug_print (VTE_DEBUG_DRAW, "draw_clip\n");
 	gdk_cairo_region(draw->cr, region);
