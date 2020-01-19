@@ -1,6 +1,6 @@
 Name: vte3
 Version: 0.34.6
-Release: 1%{?dist}
+Release: 3%{?dist}
 Summary: A terminal emulator
 License: LGPLv2+
 Group: User Interface/X
@@ -90,6 +90,12 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 
 
 %changelog
+* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.34.6-3
+- Mass rebuild 2014-01-24
+
+* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 0.34.6-2
+- Mass rebuild 2013-12-27
+
 * Mon Jun 10 2013 Kalev Lember <kalevlember@gmail.com> - 0.34.6-1
 - Update to 0.34.6
 
